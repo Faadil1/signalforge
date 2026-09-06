@@ -1,0 +1,10 @@
+line-length = 120
+target-version = "py312"
+src = ["api"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[format]
+quote-style = "double"
