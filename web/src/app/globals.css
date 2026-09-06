@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+body {
+  @apply bg-sf-bg text-sf-text antialiased;
+}
+
+* {
+  @apply border-sf-border;
+}
+
+@layer utilities {
+  .card {
+    @apply bg-sf-card border border-sf-border rounded-md;
+  }
+  .kbd {
+    @apply inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-[10px] font-mono font-medium bg-sf-bg border border-sf-border rounded text-sf-muted;
+  }
+}
