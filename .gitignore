@@ -1,0 +1,90 @@
+# =============================================
+# SignalForge .gitignore
+# =============================================
+# Keep this file sorted. One section per domain.
+# Run `git ls-files -i --exclude-standard` to verify what's currently tracked.
+
+# ── Dependencies ──────────────────────────────
+node_modules/
+.web/
+.pnp.*
+
+# ── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+sdist/
+wheels/
+
+# Testing / linting caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ── Next.js / TypeScript ──────────────────────
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Environment files ─────────────────────────
+.env
+.env.*
+!.env.example
+!.env.example.*
+
+# ── IDE / Editor ──────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ── OS ────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+
+# ── Logs ──────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Docker ────────────────────────────────────
+docker-compose.override.yml
+
+# ── Misc ──────────────────────────────────────
+*.pem
+*.key
+*.cert
+*.crt
+.pki/
