@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { clsx } from "clsx";
+import { isSignalOk, type SignalResponse } from "@/lib/api";
+import { ENABLE_BACKTESTS } from "@/lib/features";
 
 const SIGNALS = [
   { name: "Technical", weight: "25%", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
@@ -22,9 +24,9 @@ const REC_BADGE: Record<string, string> = {
 
 const FEATURES = [
   { title: "Composite Signal Score", desc: "5 independent real-time market signals fused into one 0-100 score with weighted confidence. No noise, just signal." },
-  { title: "3 Pre-Built Strategies", desc: "Momentum, Mean-Reversion, Sentiment-Flow — deterministic backtests on real klines with trade history." },
+  { title: "Honest Backtests", desc: "Momentum, Mean-Reversion, Sentiment-Flow — deterministic rule backtests on real klines with fees and slippage. Experimental, not financial advice." },
   { title: "Token Deep Dive", desc: "Drill into any token. See the score breakdown, price & volume charts, funding, and open interest drivers." },
-  { title: "Signal-Triggered Alerts", desc: "Set thresholds on the composite score. Get webhook notifications when conditions hit." },
+  { title: "Webhook Alerts", desc: "Set thresholds on the composite score and get webhook notifications when conditions hit. Disabled by default." },
   { title: "API Playground", desc: "Interactive API tester. Try every live endpoint, see real responses, monitor real usage." },
   { title: "Real Market Data", desc: "All signals compute from live Binance klines, open interest, funding, and volume — nothing is mocked." },
 ];
@@ -38,31 +40,40 @@ export default function LandingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [sig, list] = await Promise.all([
-          fetch("/api/v1/signal/BTC"),
-          fetch("/api/v1/strategies"),
-        ]);
-        const s = await sig.json();
-        const stratList = await list.json();
-        const results: { name: string; desc: string; sharpe: string; ret: string }[] = [];
-        for (const m of stratList.strategies || []) {
-          const btRes = await fetch(`/api/v1/strategy/${m.id}/backtest?token=BTC&period=90d`);
-          if (btRes.ok) {
-            const bt = await btRes.json();
-            results.push({
-              name: m.name,
-              desc: m.description,
-              sharpe: bt.metrics.sharpe_ratio.toFixed(2),
-              ret: bt.metrics.total_return,
-            });
-          }
-        }
-        if (!cancelled) {
+        const sigRes = await fetch("/api/v1/signal/BTC");
+        const s = (await sigRes.json()) as SignalResponse;
+        if (!cancelled && isSignalOk(s)) {
           setLive({ token: s.token, price: s.price, score: s.score, recommendation: s.recommendation });
-          setStrategies(results);
+        } else if (!cancelled) {
+          setError("Live BTC signal temporarily unavailable. Retry in a moment.");
         }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load live data");
+      } catch {
+        if (!cancelled) setError("Live BTC signal temporarily unavailable. Retry in a moment.");
+      }
+
+      if (ENABLE_BACKTESTS) {
+        try {
+          const listRes = await fetch("/api/v1/strategies");
+          const stratList = await listRes.json();
+          const results: { name: string; desc: string; sharpe: string; ret: string }[] = [];
+          for (const m of stratList.strategies || []) {
+            const btRes = await fetch(`/api/v1/strategy/${m.id}/backtest?token=BTC&period=90d`);
+            if (btRes.ok) {
+              const bt = await btRes.json();
+              if (bt.ok) {
+                results.push({
+                  name: m.name,
+                  desc: m.description,
+                  sharpe: bt.metrics.sharpe_ratio.toFixed(2),
+                  ret: bt.metrics.total_return,
+                });
+              }
+            }
+          }
+          if (!cancelled) setStrategies(results);
+        } catch {
+          // Strategies preview is non-critical; the landing page stays usable.
+        }
       }
     })();
     return () => {
@@ -212,11 +223,19 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-[10px] text-sf-accent uppercase tracking-widest mb-2">Pre-Built Strategies</p>
-            <h2 className="text-2xl font-bold tracking-tight">Backtested on real data. Ready to deploy.</h2>
-            <p className="text-sm text-sf-muted mt-2">90-day deterministic backtests on live Binance BTC klines.</p>
+            <h2 className="text-2xl font-bold tracking-tight">Deterministic backtests on real data.</h2>
+            <p className="text-sm text-sf-muted mt-2">Rule-based simulations on historical Binance klines. Experimental — not financial advice.</p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {strategies
+            {!ENABLE_BACKTESTS ? (
+              <div className="card p-4 text-xs text-sf-muted col-span-3 text-center">
+                <p className="text-sf-accent font-medium">Experimental — disabled by default</p>
+                <p className="mt-1">
+                  Strategy backtests run on historical klines with assumed fees and slippage. They are not financial
+                  advice. Enable <span className="font-mono">ENABLE_BACKTESTS</span> to preview them.
+                </p>
+              </div>
+            ) : strategies
               ? strategies.map((s) => (
                   <div key={s.name} className="card p-4">
                     <h3 className="text-sm font-medium mb-1">{s.name}</h3>
@@ -233,16 +252,11 @@ export default function LandingPage() {
                     </div>
                   </div>
                 ))
-              : error
-                ? (
-                    <div className="card p-4 text-xs text-sf-muted col-span-3 text-center">
-                      <p className="text-sf-danger font-mono">{error}</p>
-                      <p className="mt-2">Run the dashboard to see live strategy backtests.</p>
-                    </div>
-                  )
-                : (
-                    <div className="card p-4 text-xs text-sf-muted col-span-3 text-center animate-pulse">running live backtests…</div>
-                  )}
+              : (
+                  <div className="card p-4 text-xs text-sf-muted col-span-3 text-center animate-pulse">
+                    running live backtests…
+                  </div>
+                )}
           </div>
         </div>
       </section>

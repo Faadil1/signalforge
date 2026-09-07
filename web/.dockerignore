@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+build
+next-env.d.ts
+*.log
+.git
+.github
+.vscode
+.idea
+.env
+.env.*
+tests
+Dockerfile
+.dockerignore

@@ -1,28 +1,45 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
-import httpx
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
 from models.alert import Alert, NotificationMethod
-from models.signal import RawSignalBundle
-from services.binance_client import binance
-from services.signal_fusion import payload_from_bundle
+from services.errors import INVALID_TOKEN, error_token_payload
+from services.rate_limit import rate_limit
+from services.signal_service import get_signal_payload
+from services.symbols import is_valid_token, normalize_token
+from services.webhook_safety import fire_webhook, validate_webhook_url
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["alerts"])
 
 _alerts: dict[str, Alert] = {}
 
 
+def _clear_alerts() -> None:
+    """Drop all in-memory alerts (used between test scenarios)."""
+    _alerts.clear()
+
+
+AlertCondition = Literal["gte", "lte"]
+
+
+async def _alert_rate_limited(request: Request) -> None:
+    await rate_limit(request, tier="alert")
+
+
 class AlertCreate(BaseModel):
     token: str
-    condition: str
-    threshold: float
+    condition: AlertCondition = "gte"
+    threshold: float = Field(ge=0, le=100)
     notification: NotificationMethod = "webhook"
-    webhook_url: str | None = None
+    webhook_url: str
 
 
 class AlertEvaluate(BaseModel):
@@ -48,18 +65,23 @@ async def list_alerts():
     return {"alerts": [_serialize(a) for a in _alerts.values()], "count": len(_alerts)}
 
 
-@router.post("/alerts")
+@router.post("/alerts", dependencies=[Depends(_alert_rate_limited)])
 async def create_alert(body: AlertCreate):
-    if body.condition not in ("gte", "lte"):
-        raise HTTPException(status_code=422, detail="condition must be 'gte' or 'lte'")
+    symbol = normalize_token(body.token)
+    if not is_valid_token(symbol):
+        error = error_token_payload(symbol, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
+        raise HTTPException(status_code=422, detail=error)
+
+    validate_webhook_url(body.webhook_url)
+
     alert_id = str(uuid.uuid4())[:8]
     alert = Alert(
         id=alert_id,
-        token=body.token.upper(),
+        token=symbol,
         condition=body.condition,
         threshold=body.threshold,
         status="active",
-        notification=body.notification,
+        notification="webhook",
         webhook_url=body.webhook_url,
         created_at=datetime.now(UTC).isoformat(),
     )
@@ -75,16 +97,21 @@ async def delete_alert(alert_id: str):
     return {"status": "deleted"}
 
 
-@router.post("/alerts/evaluate")
+@router.post("/alerts/evaluate", dependencies=[Depends(_alert_rate_limited)])
 async def evaluate_alerts(body: AlertEvaluate):
     """Check active alerts for a token against the live composite signal and fire webhooks."""
-    sources = await binance.fetch_signal_sources(body.token.upper())
-    bundle = RawSignalBundle(**sources)
-    composite = payload_from_bundle(bundle)
+    symbol = normalize_token(body.token)
+    if not is_valid_token(symbol):
+        error = error_token_payload(symbol, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
+        raise HTTPException(status_code=422, detail=error)
+
+    composite = await get_signal_payload(symbol)
+    if not composite["ok"]:
+        raise HTTPException(status_code=502, detail=composite)
 
     fired = []
     for a in _alerts.values():
-        if a.status != "active" or a.token.upper() != composite["token"]:
+        if a.status != "active" or a.token != composite["token"]:
             continue
         hit = (
             composite["score"] >= a.threshold
@@ -94,29 +121,28 @@ async def evaluate_alerts(body: AlertEvaluate):
             else False
         )
         if hit:
+            try:
+                await _fire_webhook(a, composite)
+            except Exception as exc:
+                logger.warning("Webhook delivery failed for alert %s: %s", a.id, exc)
+                continue
             a.status = "triggered"
             a.last_triggered = composite["timestamp"]
-            await _fire_webhook(a, composite)
             fired.append(_serialize(a))
 
     return {"evaluated": composite["token"], "score": composite["score"], "fired": fired}
 
 
 async def _fire_webhook(alert: Alert, payload: dict) -> None:
-    if alert.notification in ("webhook", "both") and alert.webhook_url:
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(
-                    alert.webhook_url,
-                    json={
-                        "event": "signal_alert",
-                        "alert_id": alert.id,
-                        "token": alert.token,
-                        "condition": alert.condition,
-                        "threshold": alert.threshold,
-                        "payload": payload,
-                    },
-                )
-        except Exception:
-            # Webhook delivery failure should not break the alert evaluation.
-            pass
+    if alert.webhook_url:
+        await fire_webhook(
+            alert.webhook_url,
+            {
+                "event": "signal_alert",
+                "alert_id": alert.id,
+                "token": alert.token,
+                "condition": alert.condition,
+                "threshold": alert.threshold,
+                "payload": payload,
+            },
+        )

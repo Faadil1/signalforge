@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
+import { ENABLE_ALERTS, ENABLE_BACKTESTS } from "@/lib/features";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
   { href: "/token", label: "Token Deep Dive", icon: "search" },
-  { href: "/strategies", label: "Strategies", icon: "chart" },
-  { href: "/alerts", label: "Alerts", icon: "bell" },
+  ...(ENABLE_BACKTESTS ? [{ href: "/strategies", label: "Strategies", icon: "chart" }] : []),
+  ...(ENABLE_ALERTS ? [{ href: "/alerts", label: "Alerts", icon: "bell" }] : []),
   { href: "/playground", label: "API Playground", icon: "code" },
 ];
 

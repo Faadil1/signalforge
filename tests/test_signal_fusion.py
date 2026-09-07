@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from models.signal import SIGNAL_WEIGHTS, SIGNAL_WEIGHTS_SUM, RawSignalBundle
-from services.signal_fusion import compute_composite, _recommendation
+from services.signal_fusion import _recommendation, compute_composite, payload_from_bundle
 
 
 def _bundle(score: float) -> RawSignalBundle:
@@ -16,7 +16,7 @@ def _bundle(score: float) -> RawSignalBundle:
     closes = [50.0 + i * 0.1 for i in range(30)]
     klines = [
         {
-            "date": datetime.now(timezone.utc).isoformat(),
+            "date": datetime.now(UTC).isoformat(),
             "open": c - 0.05,
             "high": c + 0.1,
             "low": c - 0.1,
@@ -32,6 +32,14 @@ def _bundle(score: float) -> RawSignalBundle:
         open_interest={},
         funding={},
     )
+
+
+def _full_bundle() -> RawSignalBundle:
+    """Bundle where all five signals are available."""
+    bundle = _bundle(50.0)
+    bundle.open_interest = {"open_interest": 200.0, "mark_price": 50000.0}
+    bundle.funding = {"last_funding_rate": 0.0001}
+    return bundle
 
 
 def test_signal_weights_sum_to_one() -> None:
@@ -60,3 +68,56 @@ def test_sub_signal_weighted_fusion() -> None:
     composite = compute_composite(bundle)
     manual = sum(s.value * SIGNAL_WEIGHTS[s.name] for s in composite.sub_signals)
     assert abs(manual - composite.score) < 1e-6
+
+
+def test_funding_none_marks_signal_unavailable() -> None:
+    bundle = _full_bundle()
+    bundle.funding = None
+    composite = compute_composite(bundle)
+
+    funding = next(s for s in composite.sub_signals if s.name == "funding")
+    assert funding.available is False
+    assert "unavailable" in funding.reason
+    assert composite.available_signals == 4
+    assert composite.total_signals == 5
+    assert composite.coverage == 0.8
+
+
+def test_full_coverage_scales_confidence() -> None:
+    composite = compute_composite(_full_bundle())
+
+    assert composite.available_signals == 5
+    assert composite.coverage == 1.0
+    confs = [s.confidence for s in composite.sub_signals]
+    expected = sum(confs) / len(confs)
+    assert composite.confidence == round(expected, 3)
+
+
+def test_missing_open_interest_reduces_coverage() -> None:
+    bundle = _full_bundle()
+    bundle.open_interest = {}
+    composite = compute_composite(bundle)
+
+    oi = next(s for s in composite.sub_signals if s.name == "open_interest")
+    assert oi.available is False
+    assert composite.coverage == 0.8
+    assert composite.available_signals == 4
+
+
+def test_coverage_penalizes_adjusted_confidence() -> None:
+    full = compute_composite(_full_bundle())
+    partial = _full_bundle()
+    partial.funding = None
+    partial = compute_composite(partial)
+
+    assert full.coverage == 1.0
+    assert partial.coverage == 0.8
+    assert partial.confidence < full.confidence
+
+
+def test_payload_includes_coverage_keys() -> None:
+    payload = payload_from_bundle(_full_bundle())
+    assert payload["ok"] is True
+    assert payload["available_signals"] == 5
+    assert payload["total_signals"] == 5
+    assert payload["coverage"] == 1.0

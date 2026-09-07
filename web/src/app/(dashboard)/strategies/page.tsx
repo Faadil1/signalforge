@@ -6,12 +6,18 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Legend,
 } from "recharts";
+import { ENABLE_BACKTESTS } from "@/lib/features";
 
-type StrategyMeta = { id: string; name: string; description: string; signal_weights: Record<string, number> };
+type StrategyMeta = { id: string; name: string; description: string };
 type Backtest = {
+  ok: true;
   strategy: string;
   token: string;
   period: string;
+  actual_period: string;
+  config: { fee_bps: number; slippage_bps: number };
+  disclaimer: string;
+  experimental: boolean;
   metrics: {
     total_return: string;
     sharpe_ratio: number;
@@ -44,6 +50,7 @@ export default function StrategiesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (t: string) => {
+    if (!ENABLE_BACKTESTS) return;
     setLoading(true);
     setError(null);
     try {
@@ -57,7 +64,7 @@ export default function StrategiesPage() {
         const res = await fetch(`/api/v1/strategy/${s.id}/backtest?token=${t}&period=90d`);
         if (res.ok) {
           const bt = await res.json();
-          results[s.id] = bt;
+          if (bt.ok) results[s.id] = bt as Backtest;
         }
       }
       setBacktests(results);
@@ -71,6 +78,25 @@ export default function StrategiesPage() {
   useEffect(() => {
     load("BTC");
   }, [load]);
+
+  if (!ENABLE_BACKTESTS) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-lg font-semibold">Strategy Backtester</h1>
+          <p className="text-sm text-sf-muted">Deterministic backtests on real Binance klines</p>
+        </div>
+        <div className="card p-8 text-center">
+          <p className="text-sm text-sf-accent font-medium mb-2">Experimental feature — disabled</p>
+          <p className="text-xs text-sf-muted">
+            Backtests are disabled in this deployment. Enable them by setting{" "}
+            <span className="font-mono text-sf-text">ENABLE_BACKTESTS=true</span> on the API and{" "}
+            <span className="font-mono text-sf-text">NEXT_PUBLIC_ENABLE_BACKTESTS=true</span> on the web build.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const bt = backtests[active];
   const meta = strategies.find((s) => s.id === active);
@@ -97,13 +123,15 @@ export default function StrategiesPage() {
           <input
             type="text"
             value={token}
+            maxLength={10}
             onChange={(e) => setToken(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === "Enter" && load(token)}
             className="bg-sf-card border border-sf-border rounded px-2 py-1 text-xs font-mono w-20 focus:outline-none focus:border-sf-accent"
           />
           <button
             onClick={() => load(token)}
-            className="text-xs px-3 py-1.5 rounded border border-sf-border hover:border-sf-accent transition-colors"
+            disabled={loading}
+            className="text-xs px-3 py-1.5 rounded border border-sf-border hover:border-sf-accent transition-colors disabled:opacity-50"
           >
             Run
           </button>
@@ -119,6 +147,14 @@ export default function StrategiesPage() {
             {showCompare ? "Hide Compare" : "Compare All"}
           </button>
         </div>
+      </div>
+
+      <div className="card p-3 border-sf-border">
+        <p className="text-xs text-sf-muted">
+          <span className="text-sf-accent font-medium">Experimental — not financial advice.</span>{" "}
+          Backtests are deterministic rule simulations on historical klines. Results include assumed fees and
+          slippage; past performance does not predict future results.
+        </p>
       </div>
 
       {error && (
@@ -150,12 +186,7 @@ export default function StrategiesPage() {
 
           {meta && (
             <div className="card p-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">{meta.name}</p>
-                <span className="text-[10px] text-sf-muted font-mono">
-                  weights: {Object.entries(meta.signal_weights).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(" · ")}
-                </span>
-              </div>
+              <p className="text-sm font-medium">{meta.name}</p>
               <p className="text-xs text-sf-muted mt-1">{meta.description}</p>
             </div>
           )}
@@ -173,8 +204,12 @@ export default function StrategiesPage() {
                 ))}
               </div>
 
+              <div className="card p-3 text-[11px] text-sf-muted font-mono">
+                {bt.token} · {bt.period} requested · {bt.actual_period} analyzed · fee {bt.config.fee_bps}bps · slippage {bt.config.slippage_bps}bps
+              </div>
+
               <div className="card p-4">
-                <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Equity Curve ({bt.token} · {bt.period} · $10k start)</h3>
+                <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Equity Curve ({bt.token} · $10k start)</h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart>
                     <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#A1A1AA" }} tickLine={false} axisLine={false} />
@@ -234,7 +269,7 @@ export default function StrategiesPage() {
             </>
           ) : (
             <div className="card p-8 text-center text-xs text-sf-muted">
-              Backtest failed or returned no data. Retry.
+              Backtest returned no data for this window. Try a different token or retry.
             </div>
           )}
         </>

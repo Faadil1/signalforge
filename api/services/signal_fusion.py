@@ -53,12 +53,6 @@ def _sma(closes: list[float], period: int) -> float | None:
     return sum(closes[-period:]) / period
 
 
-# ---------------------------------------------------------------------------
-# Individual scorers. Each returns (value, confidence, available, reason).
-# A signal is "available" only when a real, parseable Binance value contributed.
-# ---------------------------------------------------------------------------
-
-
 def _score_technical(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     closes = [c["close"] for c in bundle.klines]
     if len(closes) < 20:
@@ -68,15 +62,13 @@ def _score_technical(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     short = _sma(closes, 7)
     long_ma = _sma(closes, 25)
 
-    rsi_score = 100.0 - abs(rsi - 50.0) * 2.0  # 0 at rsi=0/100, 100 at rsi=50
+    rsi_score = 100.0 - rsi
 
     ma_score = NEUTRAL_VALUE
-    ma_bullish = None
     if short is not None and long_ma is not None:
         ma_bullish = short > long_ma
         ma_score = 80.0 if ma_bullish else 20.0
 
-    # blend RSI (mean-reversion oriented) with MA structure (trend oriented)
     score = rsi_score * 0.4 + ma_score * 0.6
     confidence = 0.7
     detail = f"RSI={rsi:.1f}, MA7={short and f'{short:.1f}' or 'n/a'}"
@@ -89,17 +81,14 @@ def _score_trend(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     if len(klines) < 6 or not ticker:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Insufficient data for trend"
 
-    # Direction over the last N candles
     closes = [c["close"] for c in klines]
     n = min(5, len(closes))
     change = (closes[-1] - closes[-n]) / closes[-n] * 100.0
 
-    # Higher highs / higher lows structure
     recent = klines[-6:]
     higher_highs = int(recent[-1]["high"] > max(c["high"] for c in recent[:5]))
     higher_lows = int(recent[-1]["low"] > min(c["low"] for c in recent[:5]))
 
-    # Score from real price change: -5%..+5% maps to 0-100
     change_signal = (change + 5.0) / 10.0 * 100.0
     structure_signal = (
         70.0 if (higher_highs + higher_lows) == 2 else 30.0 if (higher_highs + higher_lows) == 0 else 50.0
@@ -117,7 +106,6 @@ def _score_open_interest(bundle: RawSignalBundle) -> tuple[float, float, bool, s
     if oi_value is None or not ticker:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "No open interest data"
 
-    # OI relative to daily volume: high OI/volume ratio signals crowded positioning
     volume = ticker.get("volume")
     price = ticker.get("last_price") or oi.get("mark_price")
     if not volume or not price:
@@ -126,7 +114,6 @@ def _score_open_interest(bundle: RawSignalBundle) -> tuple[float, float, bool, s
     oi_usd = oi_value * price
     oi_to_volume_ratio = oi_usd / (volume * price) if volume * price else 0.0
 
-    # Real ratio typically 0.1-2.0; map 0..1.5 -> 0-100; high = crowded longs
     score = (oi_to_volume_ratio / 1.5) * 100.0
     confidence = 0.5
     return _clamp(score), confidence, True, f"OI={oi_value:.0f} ({oi_to_volume_ratio:.2f}x vol)"
@@ -134,15 +121,14 @@ def _score_open_interest(bundle: RawSignalBundle) -> tuple[float, float, bool, s
 
 def _score_funding(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     funding = bundle.funding
+    if funding is None:
+        return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Funding rate data unavailable"
     rate = funding.get("last_funding_rate")
     if rate is None:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "No funding rate data"
 
-    # Positive funding = longs pay shorts (crowded long) => contrarian: score DOWN
-    # Negative funding = shorts pay longs (crowded short) => score UP
-    # Real funding is bounded ~ -0.1%..+0.1%; map to 0-100 contrarian.
-    normalized = (rate / 0.001) * 50.0  # +0.1% -> +50
-    score = 50.0 - normalized  # contrarian flip
+    normalized = (rate / 0.001) * 50.0
+    score = 50.0 - normalized
     confidence = 0.55
     direction_detail = "crowded long" if rate > 0.0001 else "crowded short" if rate < -0.0001 else "neutral"
     return _clamp(score), confidence, True, f"Funding={rate:+.5f} ({direction_detail})"
@@ -154,18 +140,24 @@ def _score_volume(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     if not ticker or len(klines) < 2:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "No volume data"
 
-    daily_volume_usd = klines[-1].get("volume", 0) * klines[-1].get("close", 0)
+    closes = [c["close"] for c in klines]
+    daily_volume_usd = klines[-1].get("volume", 0) * closes[-1]
     avg_volume_usd = sum(c["volume"] * c["close"] for c in klines[-10:]) / min(10, len(klines[-10:]))
 
     if avg_volume_usd <= 0:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Zero average volume"
 
-    # Volume surge above average typically confirms direction; score by volume activity.
     ratio = daily_volume_usd / avg_volume_usd
-    # ratio 0.5..2.0 maps to 25..100: higher activity = more conviction
-    score = 50.0 + (ratio - 1.0) * 50.0
+    price_change = (closes[-1] - closes[-2]) / closes[-2] if len(closes) >= 2 and closes[-2] else 0.0
+    direction = 1.0 if price_change >= 0 else -1.0
+    score = 50.0 + (ratio - 1.0) * 50.0 * direction
     confidence = 0.5
-    return _clamp(score), confidence, True, f"Vol x{ratio:.2f} vs 10d avg"
+    return (
+        _clamp(score),
+        confidence,
+        True,
+        f"Vol x{ratio:.2f} vs 10d avg ({'up' if price_change >= 0 else 'down'} {abs(price_change) * 100:.1f}%)",
+    )
 
 
 SCORERS: dict[SignalName, Callable[[RawSignalBundle], tuple[float, float, bool, str]]] = {
@@ -214,8 +206,10 @@ def compute_composite(bundle: RawSignalBundle) -> CompositeSignal:
             available_count += 1
 
     score = weighted_sum / total_weight if total_weight > 0 else NEUTRAL_VALUE
+    coverage = available_count / len(SCORERS) if SCORERS else 0.0
     confs = [s.confidence for s in sub_signals if s.available]
     avg_confidence = statistics.mean(confs) if confs else NEUTRAL_CONFIDENCE
+    adjusted_confidence = avg_confidence * coverage
 
     ticker = bundle.ticker
     last_price = ticker.get("last_price", 0.0) if isinstance(ticker, dict) else 0.0
@@ -224,22 +218,29 @@ def compute_composite(bundle: RawSignalBundle) -> CompositeSignal:
         token=bundle.symbol.upper(),
         price=last_price,
         score=round(score, 2),
-        confidence=round(avg_confidence, 3),
+        confidence=round(adjusted_confidence, 3),
         sub_signals=sub_signals,
         recommendation=_recommendation(score),
         timestamp=datetime.now(UTC).isoformat(),
+        available_signals=available_count,
+        total_signals=len(SCORERS),
+        coverage=round(coverage, 3),
     )
 
 
 def payload_from_bundle(bundle: RawSignalBundle) -> dict:
     composite = compute_composite(bundle)
     return {
+        "ok": True,
         "token": composite.token,
         "price": composite.price,
         "score": composite.score,
         "confidence": composite.confidence,
         "recommendation": composite.recommendation,
         "timestamp": composite.timestamp,
+        "available_signals": composite.available_signals,
+        "total_signals": composite.total_signals,
+        "coverage": composite.coverage,
         "sub_signals": [
             {
                 "name": s.name,

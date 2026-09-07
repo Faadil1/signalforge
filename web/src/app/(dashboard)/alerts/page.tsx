@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clsx } from "clsx";
+import { ENABLE_ALERTS } from "@/lib/features";
 
 type Alert = {
   id: string;
@@ -26,6 +27,7 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [evalResult, setEvalResult] = useState<{ token: string; score: number; fired: number } | null>(null);
   const [newAlert, setNewAlert] = useState({
     token: "",
@@ -36,6 +38,7 @@ export default function AlertsPage() {
   });
 
   const load = useCallback(async () => {
+    if (!ENABLE_ALERTS) return;
     setLoading(true);
     setError(null);
     try {
@@ -54,8 +57,28 @@ export default function AlertsPage() {
     load();
   }, [load]);
 
+  if (!ENABLE_ALERTS) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-lg font-semibold">Alerts</h1>
+          <p className="text-sm text-sf-muted">Signal-triggered webhooks evaluated against live composite scores</p>
+        </div>
+        <div className="card p-8 text-center">
+          <p className="text-sm text-sf-accent font-medium mb-2">Experimental feature — disabled</p>
+          <p className="text-xs text-sf-muted">
+            Alerts are disabled in this deployment. Enable them by setting{" "}
+            <span className="font-mono text-sf-text">ENABLE_ALERTS=true</span> on the API and{" "}
+            <span className="font-mono text-sf-text">NEXT_PUBLIC_ENABLE_ALERTS=true</span> on the web build.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const handleCreate = async () => {
-    if (!newAlert.token) return;
+    if (!newAlert.token || !newAlert.webhook_url || submitting) return;
+    setSubmitting(true);
     setError(null);
     try {
       const res = await fetch("/api/v1/alerts", {
@@ -65,16 +88,22 @@ export default function AlertsPage() {
           token: newAlert.token.toUpperCase(),
           condition: newAlert.condition,
           threshold: newAlert.threshold,
-          notification: newAlert.notification,
-          webhook_url: newAlert.webhook_url || null,
+          notification: "webhook",
+          webhook_url: newAlert.webhook_url,
         }),
       });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const code = body?.detail?.error?.message || `API error: ${res.status}`;
+        throw new Error(code);
+      }
       await load();
       setNewAlert({ token: "", condition: "gte", threshold: 70, notification: "webhook", webhook_url: "" });
       setShowCreate(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create alert");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -96,7 +125,11 @@ export default function AlertsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: "BTC" }),
       });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const msg = body?.detail?.error?.message || `API error: ${res.status}`;
+        throw new Error(msg);
+      }
       const data = await res.json();
       setEvalResult({ token: data.evaluated, score: data.score, fired: data.fired.length });
       await load();
@@ -154,6 +187,7 @@ export default function AlertsPage() {
                 type="text"
                 placeholder="e.g. BTC"
                 value={newAlert.token}
+                maxLength={10}
                 onChange={(e) => setNewAlert({ ...newAlert, token: e.target.value.toUpperCase() })}
                 className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-sf-accent"
               />
@@ -181,13 +215,11 @@ export default function AlertsPage() {
             <div>
               <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Notification</label>
               <select
-                value={newAlert.notification}
-                onChange={(e) => setNewAlert({ ...newAlert, notification: e.target.value })}
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-sf-accent"
+                value="webhook"
+                disabled
+                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-sf-accent disabled:opacity-60"
               >
                 <option value="webhook">webhook</option>
-                <option value="email">email</option>
-                <option value="both">both</option>
               </select>
             </div>
             <div>
@@ -205,8 +237,12 @@ export default function AlertsPage() {
             <button onClick={() => setShowCreate(false)} className="text-xs text-sf-muted px-3 py-1.5 rounded border border-sf-border hover:border-sf-accent transition-colors">
               Cancel
             </button>
-            <button onClick={handleCreate} className="bg-sf-accent text-sf-bg text-xs font-medium px-3 py-1.5 rounded hover:bg-sf-accent/90 transition-colors">
-              Create
+            <button
+              onClick={handleCreate}
+              disabled={submitting || !newAlert.token || !newAlert.webhook_url}
+              className="bg-sf-accent text-sf-bg text-xs font-medium px-3 py-1.5 rounded hover:bg-sf-accent/90 transition-colors disabled:opacity-50"
+            >
+              {submitting ? "Creating…" : "Create"}
             </button>
           </div>
         </div>

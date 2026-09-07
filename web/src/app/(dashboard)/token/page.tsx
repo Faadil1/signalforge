@@ -6,16 +6,9 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, AreaChart, Area,
 } from "recharts";
+import { isSignalOk, type SignalOk, type SignalResponse } from "@/lib/api";
 
 type SubSignal = { name: string; value: number; confidence: number; available: boolean; reason: string };
-type Signal = {
-  token: string;
-  price?: number;
-  score: number;
-  confidence: number;
-  recommendation: string;
-  sub_signals?: SubSignal[];
-};
 
 type HistoryPoint = { date: string; close: number; high: number; low: number; volume: number };
 
@@ -53,7 +46,7 @@ const SIGNAL_COLOR: Record<string, string> = {
 
 export default function TokenPage() {
   const [token, setToken] = useState("BTC");
-  const [signal, setSignal] = useState<Signal | null>(null);
+  const [signal, setSignal] = useState<SignalOk | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +54,17 @@ export default function TokenPage() {
   const load = useCallback(async (t: string) => {
     setLoading(true);
     setError(null);
+    setSignal(null);
+    setHistory([]);
     try {
       const [sigRes, histRes] = await Promise.all([
         fetch(`/api/v1/signal/${t}`),
         fetch(`/api/v1/signal/${t}/history?days=30`),
       ]);
-      if (!sigRes.ok || !histRes.ok) throw new Error(`API error`);
-      const sig = await sigRes.json();
+      const sig = (await sigRes.json()) as SignalResponse;
+      if (!sigRes.ok || !histRes.ok || !isSignalOk(sig)) {
+        throw new Error(isSignalOk(sig) ? "Failed to load history" : sig.error.message || "Failed to load token");
+      }
       const hist = await histRes.json();
       setSignal(sig);
       setHistory((hist.history as HistoryPoint[]).map((h) => ({ ...h, close: h.close })));

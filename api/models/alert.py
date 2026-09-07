@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 AlertStatus = Literal["active", "triggered", "expired"]
-NotificationMethod = Literal["webhook", "email", "both"]
+NotificationMethod = Literal["webhook"]
 
 
 @dataclass

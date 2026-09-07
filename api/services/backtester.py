@@ -1,31 +1,31 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from models.strategy import BacktestResult, StrategyMetrics, StrategyType
 from services.binance_client import binance
+from services.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 STRATEGY_DESCRIPTIONS: dict[StrategyType, dict] = {
     "momentum": {
         "name": "Momentum Rider",
-        "description": "Rides strong price trends (MA structure + volume confirmation). Enters when short-term momentum outpaces the longer-term trend, exits on momentum fade.",
-        "signal_weights": {"technical": 0.35, "trend": 0.30, "volume": 0.15, "open_interest": 0.10, "funding": 0.10},
+        "description": "Rides strong price trends using moving average crossovers. Enters when short-term momentum outpaces the longer-term trend, exits on momentum fade.",
     },
     "mean_reversion": {
         "name": "Mean Reversion",
-        "description": "Buys oversold conditions (low RSI, crowded shorts via funding) and sells into overbought strength as price reverts to the mean.",
-        "signal_weights": {"technical": 0.30, "funding": 0.25, "open_interest": 0.20, "trend": 0.15, "volume": 0.10},
+        "description": "Buys oversold conditions detected by RSI and sells into overbought strength as price reverts to the moving average.",
     },
     "sentiment_flow": {
         "name": "Sentiment Flow",
-        "description": "Follows positioning flows (funding rate + open interest shifts) combined with broad trend to front-run crowding, fading extremes.",
-        "signal_weights": {"funding": 0.30, "open_interest": 0.30, "trend": 0.20, "technical": 0.10, "volume": 0.10},
+        "description": "Combines trend structure with RSI positioning to identify mean-reversion opportunities in trending markets.",
     },
 }
 
 
 def _parse_candle(c: dict) -> dict | None:
-    """Binance client already returns parsed candles; validate required keys."""
     for key in ("date", "open", "high", "low", "close"):
         if key not in c:
             return None
@@ -49,19 +49,39 @@ def _sma(closes: list[float], period: int, idx: int) -> float | None:
 
 
 async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") -> BacktestResult:
-    """Backtest a strategy on real OHLCV klines from Binance.
+    settings = get_settings()
 
-    Deterministic rules only — no random or fabricated values. If historical
-    data is unavailable, returns an explicit unavailable result instead of
-    inventing numbers.
-    """
     days = int(period.replace("d", "")) if period.endswith("d") else int(period)
     limit = max(days, 60)
 
-    raw_klines = await binance.get_klines(f"{token}", interval="1d", limit=limit)
+    try:
+        raw_klines = await binance.get_klines(f"{token}", interval="1d", limit=limit)
+    except Exception as exc:
+        logger.warning("Backtest klines fetch failed for %s: %s", token, exc)
+        return BacktestResult(
+            strategy=strategy,
+            token=token.upper(),
+            period=period,
+            available=False,
+            error="Unable to fetch historical klines",
+            config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+            disclaimer="Experimental - not financial advice",
+        )
+
     candles = [c for c in (_parse_candle(x) for x in raw_klines) if c]
-    if len(candles) < 30:
-        raise RuntimeError("Insufficient historical klines for backtest")
+    if len(candles) < settings.backtest_min_candles:
+        return BacktestResult(
+            strategy=strategy,
+            token=token.upper(),
+            period=period,
+            available=False,
+            error=f"Insufficient data: {len(candles)} candles, need {settings.backtest_min_candles}",
+            actual_period=f"{len(candles)}d",
+            config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+            disclaimer="Experimental - not financial advice",
+        )
+
+    fee_multiplier = 1.0 - (settings.backtest_fee_bps + settings.backtest_slippage_bps) / 10000.0
 
     closes = [c["close"] for c in candles]
     equity: list[dict] = []
@@ -77,21 +97,27 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
     max_equity = capital
     max_drawdown = 0.0
 
-    last_close = closes[0]
-    for i, c in enumerate(candles):
-        close = c["close"]
-        short_sma = _sma(closes, 7, i)
-        long_sma = _sma(closes, 25, i)
-        rsi = _rsi(closes, 14, i)
+    for i in range(1, len(candles)):
+        signal_candle = candles[i - 1]
+        exec_candle = candles[i]
+        signal_close = closes[i - 1]
+        prev_signal_close = closes[i - 2] if i >= 2 else signal_close
 
-        signal = _strategy_signal(strategy, short_sma, long_sma, rsi, close, last_close)
+        short_sma = _sma(closes, 7, i - 1)
+        long_sma = _sma(closes, 25, i - 1)
+        rsi = _rsi(closes, 14, i - 1)
 
-        if signal == "buy" and position <= 0 and i >= 25:
-            position = capital / close
-            entry_price = close
-            entry_date = c["date"]
+        signal = _strategy_signal(strategy, short_sma, long_sma, rsi, signal_close, prev_signal_close)
+
+        # Signals are generated on candle t, positions are opened at candle t+1's open.
+        if signal == "buy" and position <= 0 and i - 1 >= 25:
+            exec_price = exec_candle["open"] * fee_multiplier
+            position = capital / exec_price
+            entry_price = exec_price
+            entry_date = signal_candle["date"]
         elif signal == "sell" and position > 0:
-            proceeds = position * close
+            exec_price = exec_candle["open"] * fee_multiplier
+            proceeds = position * exec_price
             pnl = (proceeds - capital) / capital * 100
             total_trades += 1
             if pnl > 0:
@@ -102,9 +128,9 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
                     "id": total_trades,
                     "token": token.upper(),
                     "entry_date": entry_date,
-                    "exit_date": c["date"],
+                    "exit_date": exec_candle["date"],
                     "entry_price": round(entry_price, 2),
-                    "exit_price": round(close, 2),
+                    "exit_price": round(exec_price, 2),
                     "pnl_pct": round(pnl, 2),
                     "position_size": round(position, 4),
                 }
@@ -112,20 +138,19 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
             capital = proceeds
             position = 0.0
 
-        equity_value = close * position if position > 0 else capital
+        equity_value = exec_candle["close"] * position if position > 0 else capital
         equity_curve.append(equity_value)
         max_equity = max(max_equity, equity_value)
         if max_equity > 0:
             drawdown = (max_equity - equity_value) / max_equity
             max_drawdown = max(max_drawdown, drawdown)
-        last_close = close
 
-        equity.append({"date": c["date"], "value": round(equity_curve[-1], 2)})
+        equity.append({"date": exec_candle["date"], "value": round(equity_curve[-1], 2)})
 
-    # Liquidate any open position at last close
     if position > 0:
         close = closes[-1]
-        proceeds = position * close
+        exec_price = close * fee_multiplier
+        proceeds = position * exec_price
         pnl = (proceeds - capital) / capital * 100
         total_trades += 1
         if pnl > 0:
@@ -138,7 +163,7 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
                 "entry_date": entry_date,
                 "exit_date": candles[-1]["date"],
                 "entry_price": round(entry_price, 2),
-                "exit_price": round(close, 2),
+                "exit_price": round(exec_price, 2),
                 "pnl_pct": round(pnl, 2),
                 "position_size": round(position, 4),
             }
@@ -153,6 +178,10 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
         strategy=strategy,
         token=token.upper(),
         period=period,
+        available=True,
+        actual_period=f"{len(candles)}d",
+        config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+        disclaimer="Experimental - not financial advice",
         metrics=StrategyMetrics(
             total_return=f"{total_return:+.1f}%",
             sharpe_ratio=round(sharpe, 2),

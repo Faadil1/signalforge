@@ -37,6 +37,9 @@ class CompositeSignal:
     sub_signals: list[SubSignal]
     recommendation: Recommendation
     timestamp: str
+    available_signals: int = 0
+    total_signals: int = 5
+    coverage: float = 0.0
 
 
 @dataclass
@@ -47,4 +50,4 @@ class RawSignalBundle:
     klines: list[dict] = field(default_factory=list)
     ticker: dict = field(default_factory=dict)
     open_interest: dict = field(default_factory=dict)
-    funding: dict = field(default_factory=dict)
+    funding: dict | None = None

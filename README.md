@@ -1,5 +1,9 @@
 <div align="center">
-  <img src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4' fill='%2322C55E'/%3E%3Cpath fill='%2309090B' d='M13 10V3L4 14h7v7l9-11h-7z'/%3E%3C/svg%3E" alt="SignalForge" width="72" height="72" />
+
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="72" height="72">
+    <rect width="24" height="24" rx="4" fill="#22C55E"/>
+    <path fill="#09090B" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+  </svg>
 
   # SignalForge
 
@@ -75,13 +79,14 @@ The fused score is threshold-mapped to a recommendation:
 ## Pre-Built Strategies
 
 All strategies are **deterministic** — backtested on real Binance OHLCV klines
-with no fabricated values.
+with no fabricated values. Each strategy uses a simplified signal subset
+(SMA crossovers + RSI) applied to historical daily candles.
 
-| Strategy | Strategy | Logic |
-|----------|----------|-------|
-| Momentum Rider | `momentum` | Rides trends via MA structure + volume confirmation |
-| Mean Reversion | `mean_reversion` | Buys oversold (low RSI, crowded shorts), sells overbought |
-| Sentiment Flow | `sentiment_flow` | Front-runs crowding via funding + open-interest shifts |
+| Strategy | ID | Logic |
+|----------|----|-------|
+| Momentum Rider | `momentum` | Buys when short MA > long MA and price is rising; sells on MA crossunder |
+| Mean Reversion | `mean_reversion` | Buys oversold conditions (RSI < 30); sells overbought (RSI > 70) |
+| Sentiment Flow | `sentiment_flow` | Combines trend direction with RSI positioning for mean-reversion entries in trends |
 
 Run a 90-day BTC backtest through the API:
 

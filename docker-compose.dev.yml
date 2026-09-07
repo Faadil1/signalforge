@@ -1,0 +1,30 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: signalforge-api-dev
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./api:/app/api
+    environment:
+      ENABLE_ALERTS: "${ENABLE_ALERTS:-true}"
+      ENABLE_BACKTESTS: "${ENABLE_BACKTESTS:-true}"
+      RATE_LIMIT_ENABLED: "${RATE_LIMIT_ENABLED:-true}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000}"
+    ports:
+      - "8000:8000"
+
+  web:
+    image: node:20-alpine
+    container_name: signalforge-web-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    volumes:
+      - ./web:/app
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: "${API_URL:-http://api:8000}"
+    depends_on:
+      - api

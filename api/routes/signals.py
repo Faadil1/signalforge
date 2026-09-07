@@ -1,92 +1,118 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+import asyncio
 
-from models.signal import RawSignalBundle
-from services.binance_client import BinancePublicError, binance
-from services.signal_fusion import payload_from_bundle
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from models.responses import (
+    ErrorDetail,
+    HistoryResponse,
+    MarketCards,
+    SignalCard,
+    SignalError,
+    SignalResponse,
+    SignalsBatch,
+)
+from services.config import get_settings
+from services.errors import INVALID_TOKEN, SIGNAL_FETCH_FAILED, TOO_MANY_TOKENS, error_token_payload
+from services.rate_limit import rate_limit
+from services.signal_service import get_candle_history, get_signal_payload
+from services.symbols import is_valid_token, normalize_token
 
 router = APIRouter(tags=["signals"])
 
 DEFAULT_TOKENS = ["BTC", "ETH", "SOL"]
+OVERVIEW_TOKENS = ["BTC", "ETH", "SOL", "BNB", "XRP"]
 
 
-async def _wrap(coro):
-    try:
-        return await coro
-    except BinancePublicError as e:
-        raise HTTPException(status_code=502, detail={"error": "Binance upstream error", "detail": str(e)}) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail={"error": "signal error", "detail": str(e)}) from e
+async def _signal_rate_limited(request: Request) -> None:
+    await rate_limit(request, tier="signal")
 
 
-@router.get("/signal/{token}")
-async def get_signal(token: str):
-    symbol = token.upper()
-    sources = await _wrap(binance.fetch_signal_sources(symbol))
-    bundle = RawSignalBundle(**sources)
-    return payload_from_bundle(bundle)
+async def _overview_rate_limited(request: Request) -> None:
+    await rate_limit(request, tier="overview")
 
 
-@router.get("/signals")
-async def get_all_signals(tokens: str = Query(default=",".join(DEFAULT_TOKENS))):
-    token_list = [t.strip().upper() for t in tokens.split(",") if t.strip()]
-    results = []
-    for token in token_list:
-        try:
-            sources = await binance.fetch_signal_sources(token)
-            bundle = RawSignalBundle(**sources)
-            p = payload_from_bundle(bundle)
-            results.append(
-                {
-                    "token": p["token"],
-                    "price": p["price"],
-                    "score": p["score"],
-                    "confidence": p["confidence"],
-                    "recommendation": p["recommendation"],
-                }
-            )
-        except Exception as e:
-            results.append({"token": token.upper(), "error": str(e)})
-    return {"signals": results, "count": len(results)}
-
-
-@router.get("/signal/{token}/history")
-async def get_signal_history(token: str, days: int = Query(default=30, ge=1, le=90)):
-    symbol = token.upper()
-    klines = await _wrap(binance.get_klines(symbol, interval="1d", limit=days))
-    history = []
-    for k in klines:
-        history.append(
-            {
-                "date": k["date"],
-                "close": k["close"],
-                "high": k["high"],
-                "low": k["low"],
-                "volume": k["volume"],
-            }
+def _card_from_payload(payload: dict) -> SignalCard:
+    if payload["ok"]:
+        return SignalCard(
+            ok=True,
+            token=payload["token"],
+            price=payload["price"],
+            score=payload["score"],
+            confidence=payload["confidence"],
+            recommendation=payload["recommendation"],
         )
-    return {"token": symbol, "history": history}
+    return SignalCard(
+        ok=False,
+        token=payload["token"],
+        error=ErrorDetail(code=payload["error"]["code"], message=payload["error"]["message"]),
+    )
 
 
-@router.get("/overview")
-async def get_overview():
-    tokens = ["BTC", "ETH", "SOL", "BNB", "XRP"]
-    cards = []
-    for t in tokens:
-        try:
-            sources = await binance.fetch_signal_sources(t)
-            bundle = RawSignalBundle(**sources)
-            p = payload_from_bundle(bundle)
-            cards.append(
-                {
-                    "token": p["token"],
-                    "price": p["price"],
-                    "score": p["score"],
-                    "confidence": p["confidence"],
-                    "recommendation": p["recommendation"],
-                }
-            )
-        except Exception as e:
-            cards.append({"token": t, "error": str(e)})
-    return {"market_cards": cards}
+@router.get("/signal/{token}", response_model=SignalResponse, dependencies=[Depends(_signal_rate_limited)])
+async def get_signal(token: str) -> SignalError | dict:
+    symbol = normalize_token(token)
+    if not is_valid_token(symbol):
+        error = error_token_payload(symbol, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
+        raise HTTPException(status_code=422, detail=error)
+
+    payload = await get_signal_payload(symbol)
+    if payload["ok"]:
+        return payload
+
+    code = payload["error"]["code"]
+    status = 502 if code == SIGNAL_FETCH_FAILED else 500
+    raise HTTPException(status_code=status, detail=payload)
+
+
+@router.get("/signals", response_model=SignalsBatch, dependencies=[Depends(_signal_rate_limited)])
+async def get_all_signals(tokens: str = Query(default=",".join(DEFAULT_TOKENS))) -> SignalsBatch:
+    settings = get_settings()
+    raw = [t for t in (tokens or "").split(",") if t.strip()]
+    if not raw:
+        error = error_token_payload("", INVALID_TOKEN, "Provide at least one token")
+        raise HTTPException(status_code=422, detail=error)
+
+    normalized = list(dict.fromkeys(normalize_token(t) for t in raw))
+    if len(normalized) > settings.max_batch_tokens:
+        error = error_token_payload(
+            ",".join(normalized),
+            TOO_MANY_TOKENS,
+            f"Too many tokens: {len(normalized)} (max {settings.max_batch_tokens})",
+        )
+        raise HTTPException(status_code=422, detail=error)
+
+    async def _one(token: str) -> SignalCard:
+        if not is_valid_token(token):
+            inv = error_token_payload(token, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
+            return _card_from_payload(inv)
+        payload = await get_signal_payload(token)
+        return _card_from_payload(payload)
+
+    cards = await asyncio.gather(*(_one(t) for t in normalized))
+    return SignalsBatch(signals=list(cards), count=len(cards))
+
+
+@router.get("/overview", response_model=MarketCards, dependencies=[Depends(_overview_rate_limited)])
+async def get_overview() -> MarketCards:
+    async def _one(token: str) -> SignalCard:
+        payload = await get_signal_payload(token)
+        return _card_from_payload(payload)
+
+    cards = await asyncio.gather(*(_one(t) for t in OVERVIEW_TOKENS))
+    return MarketCards(market_cards=list(cards))
+
+
+@router.get("/signal/{token}/history", response_model=HistoryResponse)
+async def get_signal_history(token: str, days: int = Query(default=30, ge=1, le=90)) -> HistoryResponse:
+    symbol = normalize_token(token)
+    if not is_valid_token(symbol):
+        error = error_token_payload(symbol, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
+        raise HTTPException(status_code=422, detail=error)
+    try:
+        history = await get_candle_history(symbol, days)
+    except Exception as exc:
+        error = error_token_payload(symbol, SIGNAL_FETCH_FAILED, f"Upstream data unavailable: {exc}")
+        raise HTTPException(status_code=502, detail=error) from exc
+    return HistoryResponse(token=symbol, history=history)

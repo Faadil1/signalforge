@@ -21,7 +21,12 @@ class BacktestResult:
     strategy: StrategyType
     token: str
     period: str
-    metrics: StrategyMetrics
+    available: bool = True
+    error: str | None = None
+    config: dict = field(default_factory=dict)
+    actual_period: str = ""
+    disclaimer: str = "Experimental - not financial advice"
+    metrics: StrategyMetrics | None = None
     equity_curve: list[dict] = field(default_factory=list)
     trades: list[dict] = field(default_factory=list)
 
@@ -31,4 +36,3 @@ class StrategyMeta:
     id: StrategyType
     name: str
     description: str
-    signal_weights: dict[str, float]
