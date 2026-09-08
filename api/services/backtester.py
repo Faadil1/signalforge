@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime
 
 from models.strategy import BacktestResult, StrategyMetrics, StrategyType
@@ -8,6 +9,29 @@ from services.binance_client import binance
 from services.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_float(value: float | int | str | None, default: float = 0.0) -> float:
+    """Coerce any value to a finite float, returning default for NaN/inf/None."""
+    if value is None:
+        return default
+    try:
+        result = float(value)
+        if not math.isfinite(result):
+            return default
+        return result
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_ratio(numerator: float, denominator: float, default: float = 0.0) -> float:
+    """Divide two floats safely, returning default for division by zero or NaN."""
+    num = _safe_float(numerator)
+    den = _safe_float(denominator)
+    if den == 0.0:
+        return default
+    result = num / den
+    return _safe_float(result, default)
 
 STRATEGY_DESCRIPTIONS: dict[StrategyType, dict] = {
     "momentum": {
@@ -30,12 +54,18 @@ def _parse_candle(c: dict) -> dict | None:
         if key not in c:
             return None
     try:
+        o = _safe_float(c["open"])
+        h = _safe_float(c["high"])
+        low = _safe_float(c["low"])
+        cl = _safe_float(c["close"])
+        if o <= 0 or h <= 0 or low <= 0 or cl <= 0:
+            return None
         return {
             "date": str(c["date"]),
-            "open": float(c["open"]),
-            "high": float(c["high"]),
-            "low": float(c["low"]),
-            "close": float(c["close"]),
+            "open": o,
+            "high": h,
+            "low": low,
+            "close": cl,
         }
     except (TypeError, ValueError):
         return None
@@ -83,6 +113,31 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
 
     fee_multiplier = 1.0 - (settings.backtest_fee_bps + settings.backtest_slippage_bps) / 10000.0
 
+    try:
+        result = _run_backtest_loop(
+            strategy=strategy,
+            token=token,
+            period=period,
+            candles=candles,
+            fee_multiplier=fee_multiplier,
+            settings=settings,
+        )
+        return result
+    except Exception as exc:
+        logger.warning("Backtest computation failed for %s/%s: %s", strategy, token, exc, exc_info=True)
+        return BacktestResult(
+            strategy=strategy,
+            token=token.upper(),
+            period=period,
+            available=False,
+            error=f"Backtest computation failed: {exc}",
+            actual_period=f"{len(candles)}d",
+            config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+            disclaimer="Experimental - not financial advice",
+        )
+
+
+def _run_backtest_loop(strategy, token, period, candles, fee_multiplier, settings) -> BacktestResult:
     closes = [c["close"] for c in candles]
     equity: list[dict] = []
     trades: list[dict] = []
@@ -112,13 +167,14 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
         # Signals are generated on candle t, positions are opened at candle t+1's open.
         if signal == "buy" and position <= 0 and i - 1 >= 25:
             exec_price = exec_candle["open"] * fee_multiplier
-            position = capital / exec_price
-            entry_price = exec_price
-            entry_date = signal_candle["date"]
+            if exec_price > 0:
+                position = capital / exec_price
+                entry_price = exec_price
+                entry_date = signal_candle["date"]
         elif signal == "sell" and position > 0:
             exec_price = exec_candle["open"] * fee_multiplier
-            proceeds = position * exec_price
-            pnl = (proceeds - capital) / capital * 100
+            proceeds = position * exec_price if exec_price > 0 else 0.0
+            pnl = _safe_ratio(proceeds - capital, capital) * 100
             total_trades += 1
             if pnl > 0:
                 win_trades += 1
@@ -150,8 +206,8 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
     if position > 0:
         close = closes[-1]
         exec_price = close * fee_multiplier
-        proceeds = position * exec_price
-        pnl = (proceeds - capital) / capital * 100
+        proceeds = position * exec_price if exec_price > 0 else 0.0
+        pnl = _safe_ratio(proceeds - capital, capital) * 100
         total_trades += 1
         if pnl > 0:
             win_trades += 1
@@ -170,7 +226,7 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
         )
         capital = proceeds
 
-    total_return = (capital - 10000.0) / 10000.0 * 100.0
+    total_return = _safe_ratio(capital - 10000.0, 10000.0) * 100.0
     sharpe = _sharpe(equity_curve)
     win_rate = (win_trades / total_trades * 100.0) if total_trades else 0.0
 
@@ -251,9 +307,9 @@ def _sharpe(equity_curve: list[float]) -> float:
     if len(equity_curve) < 2:
         return 0.0
     returns = [
-        (equity_curve[i] - equity_curve[i - 1]) / equity_curve[i - 1]
+        _safe_ratio(equity_curve[i] - equity_curve[i - 1], equity_curve[i - 1])
         for i in range(1, len(equity_curve))
-        if equity_curve[i - 1] != 0
+        if _safe_float(equity_curve[i - 1]) != 0
     ]
     if not returns:
         return 0.0

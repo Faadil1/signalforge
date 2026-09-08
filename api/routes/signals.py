@@ -8,14 +8,19 @@ from models.responses import (
     ErrorDetail,
     HistoryResponse,
     MarketCards,
+    RecommendationThresholdOut,
     SignalCard,
     SignalError,
+    SignalMetaOut,
     SignalResponse,
     SignalsBatch,
+    SignalsMetaResponse,
 )
+from models.signal import SIGNAL_META, SIGNAL_WEIGHTS, SIGNAL_WEIGHTS_SUM
 from services.config import get_settings
 from services.errors import INVALID_TOKEN, SIGNAL_FETCH_FAILED, TOO_MANY_TOKENS, error_token_payload
 from services.rate_limit import rate_limit
+from services.signal_fusion import BUY_THRESHOLD, SELL_THRESHOLD, STRONG_BUY_THRESHOLD, STRONG_SELL_THRESHOLD
 from services.signal_service import get_candle_history, get_signal_payload
 from services.symbols import is_valid_token, normalize_token
 
@@ -64,6 +69,32 @@ async def get_signal(token: str) -> SignalError | dict:
     code = payload["error"]["code"]
     status = 502 if code == SIGNAL_FETCH_FAILED else 500
     raise HTTPException(status_code=status, detail=payload)
+
+
+@router.get("/signals/meta", response_model=SignalsMetaResponse)
+async def get_signals_meta() -> SignalsMetaResponse:
+    signals = [
+        SignalMetaOut(
+            key=key,
+            name=SIGNAL_META[key]["name"],
+            weight=SIGNAL_WEIGHTS[key],
+            description=SIGNAL_META[key]["description"],
+        )
+        for key in SIGNAL_WEIGHTS
+    ]
+    thresholds = [
+        RecommendationThresholdOut(recommendation="strong_sell", min_score=0.0, max_score=float(STRONG_SELL_THRESHOLD)),
+        RecommendationThresholdOut(recommendation="sell", min_score=float(STRONG_SELL_THRESHOLD), max_score=float(SELL_THRESHOLD)),
+        RecommendationThresholdOut(recommendation="hold", min_score=float(SELL_THRESHOLD), max_score=float(BUY_THRESHOLD)),
+        RecommendationThresholdOut(recommendation="buy", min_score=float(BUY_THRESHOLD), max_score=float(STRONG_BUY_THRESHOLD)),
+        RecommendationThresholdOut(recommendation="strong_buy", min_score=float(STRONG_BUY_THRESHOLD), max_score=100.0),
+    ]
+    return SignalsMetaResponse(
+        signal_count=len(signals),
+        total_weight=SIGNAL_WEIGHTS_SUM,
+        signals=signals,
+        recommendation_thresholds=thresholds,
+    )
 
 
 @router.get("/signals", response_model=SignalsBatch, dependencies=[Depends(_signal_rate_limited)])

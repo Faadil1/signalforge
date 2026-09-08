@@ -17,6 +17,7 @@ class Settings:
     signal_cache_ttl: int = 45
     candle_cache_ttl: int = 300
     error_cache_ttl: int = 10
+    ticker_cache_ttl: int = 3
     cache_max_entries: int = 500
 
     # Rate limiting
@@ -24,6 +25,7 @@ class Settings:
     rate_limit_general: int = 120  # per minute
     rate_limit_signal: int = 60
     rate_limit_overview: int = 30
+    rate_limit_ticker: int = 180
     rate_limit_backtest: int = 10
     rate_limit_alert: int = 30
 
@@ -79,11 +81,13 @@ class Settings:
             signal_cache_ttl=cls._parse_int(os.getenv("SIGNAL_CACHE_TTL"), 45),
             candle_cache_ttl=cls._parse_int(os.getenv("CANDLE_CACHE_TTL"), 300),
             error_cache_ttl=cls._parse_int(os.getenv("ERROR_CACHE_TTL"), 10),
+            ticker_cache_ttl=cls._parse_int(os.getenv("TICKER_CACHE_TTL"), 3),
             cache_max_entries=cls._parse_int(os.getenv("CACHE_MAX_ENTRIES"), 500),
             rate_limit_enabled=cls._parse_bool(os.getenv("RATE_LIMIT_ENABLED"), True),
             rate_limit_general=cls._parse_int(os.getenv("RATE_LIMIT_GENERAL"), 120),
             rate_limit_signal=cls._parse_int(os.getenv("RATE_LIMIT_SIGNAL"), 60),
             rate_limit_overview=cls._parse_int(os.getenv("RATE_LIMIT_OVERVIEW"), 30),
+            rate_limit_ticker=cls._parse_int(os.getenv("RATE_LIMIT_TICKER"), 180),
             rate_limit_backtest=cls._parse_int(os.getenv("RATE_LIMIT_BACKTEST"), 10),
             rate_limit_alert=cls._parse_int(os.getenv("RATE_LIMIT_ALERT"), 30),
             max_batch_tokens=cls._parse_int(os.getenv("MAX_BATCH_TOKENS"), 10),

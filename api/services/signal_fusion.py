@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -22,8 +23,22 @@ NEUTRAL_VALUE = 50.0
 NEUTRAL_CONFIDENCE = 0.2
 
 
+def _safe_float(value: float | int | str | None, default: float = NEUTRAL_VALUE) -> float:
+    """Coerce any value to a finite float, returning default for NaN/inf/None."""
+    if value is None:
+        return default
+    try:
+        result = float(value)
+        if not math.isfinite(result):
+            return default
+        return result
+    except (TypeError, ValueError):
+        return default
+
+
 def _clamp(value: float, lo: float = 0.0, hi: float = 100.0) -> float:
-    return max(lo, min(hi, value))
+    safe = _safe_float(value, NEUTRAL_VALUE)
+    return max(lo, min(hi, safe))
 
 
 def _rsi(closes: list[float], period: int = 14) -> float:
@@ -54,11 +69,11 @@ def _sma(closes: list[float], period: int) -> float | None:
 
 
 def _score_technical(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
-    closes = [c["close"] for c in bundle.klines]
+    closes = [_safe_float(c.get("close")) for c in bundle.klines if c.get("close") is not None]
     if len(closes) < 20:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Insufficient klines for technical signals"
 
-    rsi = _rsi(closes, 14)
+    rsi = _safe_float(_rsi(closes, 14), 50.0)
     short = _sma(closes, 7)
     long_ma = _sma(closes, 25)
 
@@ -81,13 +96,20 @@ def _score_trend(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     if len(klines) < 6 or not ticker:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Insufficient data for trend"
 
-    closes = [c["close"] for c in klines]
+    closes = [_safe_float(c.get("close")) for c in klines if c.get("close") is not None]
+    if len(closes) < 6:
+        return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Insufficient close data for trend"
     n = min(5, len(closes))
-    change = (closes[-1] - closes[-n]) / closes[-n] * 100.0
+    denominator = closes[-n] if closes[-n] != 0 else 1.0
+    change = (closes[-1] - closes[-n]) / denominator * 100.0
 
     recent = klines[-6:]
-    higher_highs = int(recent[-1]["high"] > max(c["high"] for c in recent[:5]))
-    higher_lows = int(recent[-1]["low"] > min(c["low"] for c in recent[:5]))
+    highs = [_safe_float(c.get("high")) for c in recent[:5]]
+    lows = [_safe_float(c.get("low")) for c in recent[:5]]
+    last_high = _safe_float(recent[-1].get("high"))
+    last_low = _safe_float(recent[-1].get("low"))
+    higher_highs = int(last_high > max(highs)) if highs else 0
+    higher_lows = int(last_low > min(lows)) if lows else 0
 
     change_signal = (change + 5.0) / 10.0 * 100.0
     structure_signal = (
@@ -102,17 +124,18 @@ def _score_trend(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
 def _score_open_interest(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     oi = bundle.open_interest
     ticker = bundle.ticker
-    oi_value = oi.get("open_interest")
-    if oi_value is None or not ticker:
+    oi_value = _safe_float(oi.get("open_interest"), 0.0)
+    if oi_value == 0.0 or not ticker:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "No open interest data"
 
-    volume = ticker.get("volume")
-    price = ticker.get("last_price") or oi.get("mark_price")
-    if not volume or not price:
+    volume = _safe_float(ticker.get("volume"), 0.0)
+    price = _safe_float(ticker.get("last_price") or oi.get("mark_price"), 0.0)
+    if volume <= 0 or price <= 0:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Missing volume/price for OI context"
 
     oi_usd = oi_value * price
-    oi_to_volume_ratio = oi_usd / (volume * price) if volume * price else 0.0
+    vol_usd = volume * price
+    oi_to_volume_ratio = oi_usd / vol_usd if vol_usd else 0.0
 
     score = (oi_to_volume_ratio / 1.5) * 100.0
     confidence = 0.5
@@ -123,7 +146,7 @@ def _score_funding(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     funding = bundle.funding
     if funding is None:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Funding rate data unavailable"
-    rate = funding.get("last_funding_rate")
+    rate = _safe_float(funding.get("last_funding_rate"), None)
     if rate is None:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "No funding rate data"
 
@@ -140,15 +163,22 @@ def _score_volume(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     if not ticker or len(klines) < 2:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "No volume data"
 
-    closes = [c["close"] for c in klines]
-    daily_volume_usd = klines[-1].get("volume", 0) * closes[-1]
-    avg_volume_usd = sum(c["volume"] * c["close"] for c in klines[-10:]) / min(10, len(klines[-10:]))
+    closes = [_safe_float(c.get("close")) for c in klines if c.get("close") is not None]
+    if len(closes) < 2:
+        return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Insufficient close data for volume"
+    daily_volume = _safe_float(klines[-1].get("volume"), 0.0)
+    daily_volume_usd = daily_volume * closes[-1]
+    avg_volume_usd = sum(
+        _safe_float(c.get("volume"), 0.0) * _safe_float(c.get("close"), 0.0)
+        for c in klines[-10:]
+    ) / min(10, len(klines[-10:]))
 
     if avg_volume_usd <= 0:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Zero average volume"
 
     ratio = daily_volume_usd / avg_volume_usd
-    price_change = (closes[-1] - closes[-2]) / closes[-2] if len(closes) >= 2 and closes[-2] else 0.0
+    denominator = closes[-2] if closes[-2] != 0 else 1.0
+    price_change = (closes[-1] - closes[-2]) / denominator if len(closes) >= 2 else 0.0
     direction = 1.0 if price_change >= 0 else -1.0
     score = 50.0 + (ratio - 1.0) * 50.0 * direction
     confidence = 0.5
@@ -188,43 +218,51 @@ def compute_composite(bundle: RawSignalBundle) -> CompositeSignal:
     available_count = 0
 
     for name, scorer in SCORERS.items():
-        value, confidence, available, reason = scorer(bundle)
+        try:
+            value, confidence, available, reason = scorer(bundle)
+        except Exception:
+            value, confidence, available, reason = NEUTRAL_VALUE, 0.0, False, f"Error computing {name} signal"
         weight = SIGNAL_WEIGHTS[name]
+        safe_value = _safe_float(value, NEUTRAL_VALUE)
+        safe_confidence = _safe_float(confidence, 0.0)
         sub_signals.append(
             SubSignal(
                 name=name,
-                value=round(value, 2),
-                confidence=round(confidence, 3),
+                value=round(_clamp(safe_value), 2),
+                confidence=round(max(0.0, min(1.0, safe_confidence)), 3),
                 available=available,
                 reason=reason,
                 raw={},
             )
         )
-        weighted_sum += value * weight
+        weighted_sum += safe_value * weight
         total_weight += weight
         if available:
             available_count += 1
 
     score = weighted_sum / total_weight if total_weight > 0 else NEUTRAL_VALUE
+    score = _safe_float(score, NEUTRAL_VALUE)
     coverage = available_count / len(SCORERS) if SCORERS else 0.0
     confs = [s.confidence for s in sub_signals if s.available]
     avg_confidence = statistics.mean(confs) if confs else NEUTRAL_CONFIDENCE
+    avg_confidence = _safe_float(avg_confidence, NEUTRAL_CONFIDENCE)
     adjusted_confidence = avg_confidence * coverage
+    adjusted_confidence = _safe_float(adjusted_confidence, 0.0)
 
     ticker = bundle.ticker
-    last_price = ticker.get("last_price", 0.0) if isinstance(ticker, dict) else 0.0
+    last_price = _safe_float(ticker.get("last_price", 0.0) if isinstance(ticker, dict) else 0.0, 0.0)
 
     return CompositeSignal(
         token=bundle.symbol.upper(),
         price=last_price,
-        score=round(score, 2),
-        confidence=round(adjusted_confidence, 3),
+        score=round(_clamp(score), 2),
+        confidence=round(max(0.0, min(1.0, adjusted_confidence)), 3),
         sub_signals=sub_signals,
-        recommendation=_recommendation(score),
+        recommendation=_recommendation(_clamp(score)),
         timestamp=datetime.now(UTC).isoformat(),
         available_signals=available_count,
         total_signals=len(SCORERS),
-        coverage=round(coverage, 3),
+        coverage=round(max(0.0, min(1.0, coverage)), 3),
     )
 
 

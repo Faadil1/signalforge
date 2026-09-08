@@ -1,9 +1,6 @@
 <div align="center">
 
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="72" height="72">
-    <rect width="24" height="24" rx="4" fill="#22C55E"/>
-    <path fill="#09090B" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-  </svg>
+  <img src="assets/logo.svg" alt="SignalForge logo" width="280" height="64" />
 
   # SignalForge
 
@@ -36,10 +33,10 @@ by fusing five independent, real-time market signals derived from the free
 Binance public API. The score maps to a recommendation: `strong_buy`, `buy`,
 `hold`, `sell`, or `strong_sell`.
 
-Built for the **X-Agent AI MCP Hackathon 2026** (Track 2: OlaXBT x X-Agent
-Trading Challenge), SignalForge ships a FastAPI backend, a Next.js dashboard,
-pre-built backtested strategies, signal-triggered alerts, and an interactive
-API playground.
+Built for the **X-Agent AI MCP Hackathon 2026** (Open Innovation track),
+SignalForge ships a FastAPI backend, a Next.js dashboard, pre-built backtested
+strategies, signal-triggered alerts, and an interactive, agent-ready API
+playground.
 
 | Spotlight | Value |
 |---|---|
@@ -167,11 +164,13 @@ docker compose up --build
 ## Environment Variables
 
 The backend requires **no** API keys (Binance public data is keyless). The
-following optional variable is respected by the web service:
+following variables are respected by the web service:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `API_URL` | `http://localhost:8000` | Upstream API origin for the Next.js proxy |
+| `NEXT_PUBLIC_ENABLE_BACKTESTS` | `true` | Show the Strategy Lab page |
+| `NEXT_PUBLIC_ENABLE_ALERTS` | `true` | Show the Alerts page |
 
 Copy `.env.example` to `.env` to configure.
 
@@ -181,12 +180,12 @@ Copy `.env.example` to `.env` to configure.
 
 | Route | Description |
 |-------|-------------|
-| `/` | Landing page — live BTC score preview + strategy results |
+| `/` | Landing page — live score preview + product/API sections |
 | `/dashboard` | KPI cards + signal score table with filtering + detail sidebar |
-| `/token` | Token deep dive — score breakdown, price/volume charts, signal drivers |
-| `/strategies` | Strategy backtester — equity curves, metrics, trade history, compare mode |
-| `/alerts` | Alert management — create threshold alerts + evaluate against live scores |
-| `/playground` | API playground — interactive endpoint tester + real usage stats |
+| `/token` | Token deep dive — score gauge, price/volume charts, signal drivers |
+| `/strategies` | Strategy Lab — backtests, equity curves, metrics, trade history |
+| `/alerts` | Alerts — create threshold webhooks + evaluate against live scores |
+| `/playground` | Agent API — interactive endpoint tester + real usage stats |
 
 ---
 
@@ -219,8 +218,8 @@ signalforge/
 │   └── services/            # binance client, signal fusion, backtester, usage
 ├── web/                     # Next.js frontend
 │   ├── src/app/             # Landing + dashboard pages
-│   ├── src/components/      # Sidebar
-│   └── src/lib/             # API client helpers (cn, fetch/post/delete)
+│   ├── src/components/      # UI, layout, signal + chart components
+│   └── src/lib/             # API client, feature flags, signal + cn helpers
 ├── tests/                   # pytest suite
 ├── Dockerfile               # Backend container image
 ├── docker-compose.yml       # Multi-service orchestration

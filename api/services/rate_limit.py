@@ -46,6 +46,7 @@ _LIMIT_MAP = {
     "general": lambda s: s.rate_limit_general,
     "signal": lambda s: s.rate_limit_signal,
     "overview": lambda s: s.rate_limit_overview,
+    "ticker": lambda s: s.rate_limit_ticker,
     "backtest": lambda s: s.rate_limit_backtest,
     "alert": lambda s: s.rate_limit_alert,
 }

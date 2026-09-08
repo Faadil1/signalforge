@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { clsx } from "clsx";
+import { X, Plus, BellRing, Webhook, KeyRound, Zap } from "lucide-react";
+import { safeJson } from "@/lib/api";
 import { ENABLE_ALERTS } from "@/lib/features";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 type Alert = {
   id: string;
@@ -16,11 +21,11 @@ type Alert = {
   last_triggered: string | null;
 };
 
-const STATUS_STYLE = {
-  active: "bg-sf-accent/15 text-sf-accent",
-  triggered: "bg-orange-500/15 text-orange-400",
-  expired: "bg-sf-muted/15 text-sf-muted",
-};
+const STATUS_TONE = {
+  active: "positive",
+  triggered: "warning",
+  expired: "neutral",
+} as const;
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -44,7 +49,7 @@ export default function AlertsPage() {
     try {
       const res = await fetch("/api/v1/alerts");
       if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const data = await res.json();
+      const data = await safeJson<{ alerts: Alert[] }>(res, { alerts: [] });
       setAlerts(data.alerts || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load alerts");
@@ -59,19 +64,16 @@ export default function AlertsPage() {
 
   if (!ENABLE_ALERTS) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-lg font-semibold">Alerts</h1>
-          <p className="text-sm text-sf-muted">Signal-triggered webhooks evaluated against live composite scores</p>
-        </div>
-        <div className="card p-8 text-center">
-          <p className="text-sm text-sf-accent font-medium mb-2">Experimental feature — disabled</p>
-          <p className="text-xs text-sf-muted">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <PageHeader title="Alerts" subtitle="Signal-triggered webhooks evaluated against live composite scores" />
+        <Card className="p-8 text-center">
+          <p className="mb-2 text-sm font-medium text-brand">Experimental feature — disabled</p>
+          <p className="text-xs text-text-secondary">
             Alerts are disabled in this deployment. Enable them by setting{" "}
-            <span className="font-mono text-sf-text">ENABLE_ALERTS=true</span> on the API and{" "}
-            <span className="font-mono text-sf-text">NEXT_PUBLIC_ENABLE_ALERTS=true</span> on the web build.
+            <span className="font-mono text-text">ENABLE_ALERTS=true</span> on the API and{" "}
+            <span className="font-mono text-text">NEXT_PUBLIC_ENABLE_ALERTS=true</span> on the web build.
           </p>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -130,7 +132,7 @@ export default function AlertsPage() {
         const msg = body?.detail?.error?.message || `API error: ${res.status}`;
         throw new Error(msg);
       }
-      const data = await res.json();
+      const data = await safeJson<{ evaluated: string; score: number; fired: { id: string }[] }>(res, { evaluated: "BTC", score: 0, fired: [] });
       setEvalResult({ token: data.evaluated, score: data.score, fired: data.fired.length });
       await load();
     } catch (e) {
@@ -139,121 +141,111 @@ export default function AlertsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Alerts</h1>
-          <p className="text-sm text-sf-muted">Signal-triggered webhooks evaluated against live composite scores</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleEvaluate}
-            className="text-xs px-3 py-1.5 rounded border border-sf-border hover:border-sf-accent transition-colors"
-          >
-            Evaluate vs Live BTC
-          </button>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="bg-sf-accent text-sf-bg text-xs font-medium px-3 py-1.5 rounded hover:bg-sf-accent/90 transition-colors"
-          >
-            + New Alert
-          </button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <PageHeader
+        title="Alerts"
+        subtitle="Signal-triggered webhooks evaluated against live composite scores"
+        badge={<Badge tone="info"><BellRing className="h-3.5 w-3.5" /> Webhooks</Badge>}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button size="md" variant="secondary" onClick={handleEvaluate}>
+              <Zap className="h-4 w-4" /> Evaluate vs Live BTC
+            </Button>
+            <Button size="md" onClick={() => setShowCreate(!showCreate)}>
+              <Plus className="h-4 w-4" /> New Alert
+            </Button>
+          </div>
+        }
+      />
 
       {error && (
-        <div className="card p-3 text-xs text-sf-danger font-mono flex items-center justify-between">
+        <Card className="flex items-center justify-between p-4 text-sm text-negative font-mono">
           <span>{error}</span>
-          <button onClick={load} className="underline text-sf-accent">retry</button>
-        </div>
+          <button onClick={load} className="underline text-brand">retry</button>
+        </Card>
       )}
 
       {evalResult && (
-        <div className="card p-3 text-xs font-mono flex items-center justify-between">
-          <span className="text-sf-muted">
-            Evaluated BTC against live signal: score <span className="text-sf-accent">{evalResult.score}</span> — {evalResult.fired} alert{evalResult.fired === 1 ? "" : "s"} fired
+        <Card className="flex items-center justify-between p-4 text-xs font-mono">
+          <span className="text-text-secondary">
+            Evaluated {evalResult.token} against live signal: score <span className="font-semibold text-brand">{evalResult.score}</span> —{" "}
+            {evalResult.fired} alert{evalResult.fired === 1 ? "" : "s"} fired
           </span>
-          <button onClick={() => setEvalResult(null)} className="text-sf-muted hover:text-sf-text">✕</button>
-        </div>
+          <button onClick={() => setEvalResult(null)} className="text-text-subtle hover:text-text">
+            <X className="h-4 w-4" />
+          </button>
+        </Card>
       )}
 
       {showCreate && (
-        <div className="card p-4">
-          <h3 className="text-sm font-medium mb-3">Create Alert</h3>
-          <div className="grid grid-cols-5 gap-3">
-            <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Token</label>
-              <input
-                type="text"
-                placeholder="e.g. BTC"
-                value={newAlert.token}
-                maxLength={10}
-                onChange={(e) => setNewAlert({ ...newAlert, token: e.target.value.toUpperCase() })}
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-sf-accent"
-              />
+        <Card>
+          <CardHeader><CardTitle>Create Alert</CardTitle></CardHeader>
+          <CardBody>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Token</label>
+                <input
+                  type="text"
+                  placeholder="e.g. BTC"
+                  value={newAlert.token}
+                  maxLength={10}
+                  onChange={(e) => setNewAlert({ ...newAlert, token: e.target.value.toUpperCase() })}
+                  className="input font-mono"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Condition</label>
+                <select
+                  value={newAlert.condition}
+                  onChange={(e) => setNewAlert({ ...newAlert, condition: e.target.value })}
+                  className="input"
+                >
+                  <option value="gte">score &gt;=</option>
+                  <option value="lte">score &lt;=</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Threshold</label>
+                <input
+                  type="number"
+                  value={newAlert.threshold}
+                  onChange={(e) => setNewAlert({ ...newAlert, threshold: Number(e.target.value) })}
+                  className="input font-mono"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Notification</label>
+                <select value="webhook" disabled className="input disabled:opacity-60">
+                  <option value="webhook">webhook</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Webhook URL</label>
+                <input
+                  type="text"
+                  placeholder="https://…"
+                  value={newAlert.webhook_url}
+                  onChange={(e) => setNewAlert({ ...newAlert, webhook_url: e.target.value })}
+                  className="input font-mono"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Condition</label>
-              <select
-                value={newAlert.condition}
-                onChange={(e) => setNewAlert({ ...newAlert, condition: e.target.value })}
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-sf-accent"
-              >
-                <option value="gte">score &gt;=</option>
-                <option value="lte">score &lt;=</option>
-              </select>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="md" variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button size="md" onClick={handleCreate} loading={submitting} disabled={!newAlert.token || !newAlert.webhook_url}>
+                {!submitting && <Webhook className="h-4 w-4" />} {submitting ? "Creating…" : "Create Alert"}
+              </Button>
             </div>
-            <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Threshold</label>
-              <input
-                type="number"
-                value={newAlert.threshold}
-                onChange={(e) => setNewAlert({ ...newAlert, threshold: Number(e.target.value) })}
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-sf-accent"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Notification</label>
-              <select
-                value="webhook"
-                disabled
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs focus:outline-none focus:border-sf-accent disabled:opacity-60"
-              >
-                <option value="webhook">webhook</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Webhook URL</label>
-              <input
-                type="text"
-                placeholder="https://…"
-                value={newAlert.webhook_url}
-                onChange={(e) => setNewAlert({ ...newAlert, webhook_url: e.target.value })}
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-sf-accent"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <button onClick={() => setShowCreate(false)} className="text-xs text-sf-muted px-3 py-1.5 rounded border border-sf-border hover:border-sf-accent transition-colors">
-              Cancel
-            </button>
-            <button
-              onClick={handleCreate}
-              disabled={submitting || !newAlert.token || !newAlert.webhook_url}
-              className="bg-sf-accent text-sf-bg text-xs font-medium px-3 py-1.5 rounded hover:bg-sf-accent/90 transition-colors disabled:opacity-50"
-            >
-              {submitting ? "Creating…" : "Create"}
-            </button>
-          </div>
-        </div>
+          </CardBody>
+        </Card>
       )}
 
-      <div className="card">
+      <Card>
         {loading ? (
-          <div className="p-8 text-center text-xs text-sf-muted animate-pulse">Loading alerts…</div>
+          <div className="p-8 text-center text-xs text-text-subtle animate-pulse">Loading alerts…</div>
         ) : (
-          <div className="divide-y divide-sf-border">
-            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 text-[10px] text-sf-muted uppercase tracking-wider">
+          <div className="divide-y divide-border">
+            <div className="grid grid-cols-12 gap-2 px-5 py-2 text-[10px] uppercase tracking-wider text-text-subtle">
               <div className="col-span-2">Token</div>
               <div className="col-span-2">Condition</div>
               <div className="col-span-1">Threshold</div>
@@ -263,22 +255,24 @@ export default function AlertsPage() {
               <div className="col-span-1" />
             </div>
             {alerts.length === 0 && !loading && (
-              <div className="p-8 text-center text-xs text-sf-muted">No alerts yet — create one to get webhook-triggered signal alerts.</div>
+              <div className="p-8 text-center text-xs text-text-subtle">No alerts yet — create one to get webhook-triggered signal alerts.</div>
             )}
             {alerts.map((a) => (
-              <div key={a.id} className="grid grid-cols-12 gap-2 px-3 py-2.5 text-sm hover:bg-sf-bg/50 transition-colors">
-                <div className="col-span-2 font-mono font-medium">{a.token}</div>
-                <div className="col-span-2 font-mono text-xs text-sf-muted">{a.condition === "gte" ? "score >=" : "score <="}</div>
-                <div className="col-span-1 font-mono text-xs">{a.threshold}</div>
+              <div key={a.id} className="grid grid-cols-12 items-center gap-2 px-5 py-3 text-sm hover:bg-surface-secondary/60 transition-colors">
+                <div className="col-span-2 font-mono font-medium text-text">{a.token}</div>
+                <div className="col-span-2 font-mono text-xs text-text-secondary">{a.condition === "gte" ? "score >=" : "score <="}</div>
+                <div className="col-span-1 font-mono text-xs text-text">{a.threshold}</div>
                 <div className="col-span-2">
-                  <span className={clsx("inline-block px-2 py-0.5 rounded text-[11px] font-medium capitalize", STATUS_STYLE[a.status] || STATUS_STYLE.active)}>
-                    {a.status}
-                  </span>
+                  <Badge tone={STATUS_TONE[a.status] || "neutral"} className="capitalize">{a.status}</Badge>
                 </div>
-                <div className="col-span-2 text-xs text-sf-muted capitalize">{a.notification}</div>
-                <div className="col-span-2 text-xs text-sf-muted font-mono truncate">{a.last_triggered ? new Date(a.last_triggered).toISOString().slice(0, 16) : "—"}</div>
+                <div className="col-span-2 text-xs text-text-secondary capitalize">
+                  <span className="flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5 text-text-subtle" /> {a.notification}</span>
+                </div>
+                <div className="col-span-2 truncate font-mono text-xs text-text-subtle">
+                  {a.last_triggered ? new Date(a.last_triggered).toISOString().slice(0, 16) : "—"}
+                </div>
                 <div className="col-span-1 text-right">
-                  <button onClick={() => handleDelete(a.id)} className="text-[10px] text-sf-muted hover:text-sf-danger transition-colors">
+                  <button onClick={() => handleDelete(a.id)} className="text-xs text-text-subtle hover:text-negative transition-colors">
                     delete
                   </button>
                 </div>
@@ -286,7 +280,7 @@ export default function AlertsPage() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

@@ -71,3 +71,43 @@ class HistoryPoint(BaseModel):
 class HistoryResponse(BaseModel):
     token: str
     history: list[HistoryPoint]
+
+
+class SignalMetaOut(BaseModel):
+    key: str
+    name: str
+    weight: float
+    description: str
+
+
+class RecommendationThresholdOut(BaseModel):
+    recommendation: str
+    min_score: float
+    max_score: float
+
+
+class SignalsMetaResponse(BaseModel):
+    signal_count: int
+    total_weight: float
+    signals: list[SignalMetaOut]
+    recommendation_thresholds: list[RecommendationThresholdOut]
+
+
+class TickerOut(BaseModel):
+    token: str
+    symbol: str
+    price: float
+    price_change_pct: float
+    high: float
+    low: float
+    volume: float
+    quote_volume: float
+    source: str
+    timestamp: str
+
+
+class TickersResponse(BaseModel):
+    ok: bool
+    source: str
+    fetched_at: str
+    tickers: list[TickerOut]

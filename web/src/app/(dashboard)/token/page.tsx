@@ -6,27 +6,21 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   BarChart, Bar, AreaChart, Area,
 } from "recharts";
-import { isSignalOk, type SignalOk, type SignalResponse } from "@/lib/api";
+import { Search, TrendingUp, BarChart3, Info, Activity } from "lucide-react";
+import { fetchTicker, isSignalOk, safeJson, type SignalResponse, type SignalOk, type Ticker } from "@/lib/api";
+import { useInterval } from "@/lib/useInterval";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PriceTicker } from "@/components/market/PriceTicker";
+import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ScoreGauge } from "@/components/charts/ScoreGauge";
+import { RecommendationBadge } from "@/components/signal/RecommendationBadge";
+import { Button } from "@/components/ui/Button";
 
 type SubSignal = { name: string; value: number; confidence: number; available: boolean; reason: string };
 
 type HistoryPoint = { date: string; close: number; high: number; low: number; volume: number };
-
-const REC_BADGE: Record<string, string> = {
-  strong_buy: "bg-sf-accent/15 text-sf-accent",
-  buy: "bg-green-500/15 text-green-400",
-  hold: "bg-sf-muted/15 text-sf-muted",
-  sell: "bg-orange-500/15 text-orange-400",
-  strong_sell: "bg-sf-danger/15 text-sf-danger",
-};
-
-const SCORE_COLOR = (score: number) => {
-  if (score >= 75) return "text-sf-accent";
-  if (score >= 60) return "text-green-400";
-  if (score >= 40) return "text-sf-muted";
-  if (score >= 25) return "text-orange-400";
-  return "text-sf-danger";
-};
 
 const SIGNAL_LABEL: Record<string, string> = {
   technical: "Technical",
@@ -44,32 +38,53 @@ const SIGNAL_COLOR: Record<string, string> = {
   volume: "#A855F7",
 };
 
+const POLL_MS = 10_000;
+const TICKER_POLL_MS = 4_000;
+
+const INTERPRETATION: Record<string, string> = {
+  hold: "Signals are balanced — no strong directional edge right now. Focus on the confidence level: lower confidence means several components are near-neutral.",
+  strong_buy: "Multiple components are aligned bullish with elevated conviction. Strong set-up but always pair with your own risk management.",
+  buy: "A cautiously bullish composite. Confirm with trend + volume before sizing up.",
+  sell: "The composite is skewing bearish — mostly driven by weak technical/trend structure.",
+  strong_sell: "A decisively bearish composite. High conviction short/risk-off posture.",
+};
+
 export default function TokenPage() {
   const [token, setToken] = useState("BTC");
   const [signal, setSignal] = useState<SignalOk | null>(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [ticker, setTicker] = useState<Ticker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (t: string) => {
-    setLoading(true);
-    setError(null);
-    setSignal(null);
-    setHistory([]);
+  const load = useCallback(async (t: string, opts?: { silent?: boolean }) => {
+    if (!opts?.silent) {
+      setLoading(true);
+      setError(null);
+      setSignal(null);
+      setHistory([]);
+      setTicker(null);
+    }
     try {
-      const [sigRes, histRes] = await Promise.all([
+      const [sigRes, histRes, tickerRes] = await Promise.all([
         fetch(`/api/v1/signal/${t}`),
         fetch(`/api/v1/signal/${t}/history?days=30`),
+        fetchTicker(t),
       ]);
-      const sig = (await sigRes.json()) as SignalResponse;
+      const sig = await safeJson<SignalResponse>(sigRes, {
+        ok: false,
+        token: t,
+        error: { code: "UNPARSEABLE", message: "Unexpected response" },
+      });
       if (!sigRes.ok || !histRes.ok || !isSignalOk(sig)) {
         throw new Error(isSignalOk(sig) ? "Failed to load history" : sig.error.message || "Failed to load token");
       }
-      const hist = await histRes.json();
+      const hist = await safeJson<{ history: HistoryPoint[] }>(histRes, { history: [] });
       setSignal(sig);
-      setHistory((hist.history as HistoryPoint[]).map((h) => ({ ...h, close: h.close })));
+      setHistory((hist.history || []).map((h) => ({ ...h, close: h.close })));
+      setTicker(tickerRes);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load token");
+      if (!opts?.silent) setError(e instanceof Error ? e.message : "Failed to load token");
     } finally {
       setLoading(false);
     }
@@ -79,147 +94,174 @@ export default function TokenPage() {
     load("BTC");
   }, [load]);
 
+  useInterval(() => {
+    load(token, { silent: true });
+  }, POLL_MS);
+
+  useInterval(async () => {
+    const t = await fetchTicker(token);
+    setTicker(t);
+  }, TICKER_POLL_MS);
+
   const sub = signal?.sub_signals || [];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          value={token}
-          onChange={(e) => setToken(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && load(token)}
-          className="bg-sf-card border border-sf-border rounded px-3 py-1.5 text-sm font-mono w-24 focus:outline-none focus:border-sf-accent"
-        />
-        <h1 className="text-lg font-semibold">{token} Deep Dive</h1>
-        <span className="text-xs text-sf-muted">Live Binance market analysis</span>
-        {loading && <span className="text-xs text-sf-muted font-mono animate-pulse">loading…</span>}
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={`${token} Signal Intelligence`}
+        subtitle="Live multi-signal analysis with full explainability"
+        badge={loading ? <StatusBadge status="stale" label="Loading" /> : error ? <StatusBadge status="error" /> : <StatusBadge status="live" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
+              <input
+                type="text"
+                value={token}
+                maxLength={12}
+                onChange={(e) => setToken(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === "Enter" && load(token)}
+                className="input pl-8 w-28 font-mono"
+                placeholder="Token"
+              />
+            </div>
+            <Button onClick={() => load(token)} loading={loading}>Analyze</Button>
+          </div>
+        }
+      />
 
       {error && (
-        <div className="card p-3 text-xs text-sf-danger font-mono flex items-center justify-between">
+        <Card className="p-4 text-sm text-negative font-mono flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => load(token)} className="underline text-sf-accent">retry</button>
-        </div>
+          <button onClick={() => load(token)} className="underline text-brand">retry</button>
+        </Card>
       )}
 
-      {!signal && !error && (
-        <div className="card p-8 text-center text-xs text-sf-muted">Loading live signal…</div>
+      {!signal && !error && loading && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="card p-6 flex items-center justify-center"><div className="skeleton h-40 w-40 rounded-full" /></div>
+          <div className="space-y-4 lg:col-span-2"><div className="skeleton h-4 w-2/3" /><div className="skeleton h-4 w-full" /><div className="skeleton h-4 w-5/6" /></div>
+        </div>
       )}
 
       {signal && (
         <>
-          {/* Top Row — Score + Breakdown */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="card p-4 flex flex-col items-center justify-center">
-              <span className={clsx("text-5xl font-bold font-mono", SCORE_COLOR(signal.score))}>{signal.score}</span>
-              <p className="text-[10px] text-sf-muted uppercase tracking-wider mt-1">Composite Score</p>
-              <span className={clsx("mt-2 px-2 py-0.5 rounded text-xs font-medium", REC_BADGE[signal.recommendation])}>
-                {signal.recommendation.replace("_", " ")}
-              </span>
-              {signal.price != null && (
-                <p className="mt-2 text-sm font-mono text-sf-muted">${signal.price.toLocaleString()}</p>
-              )}
-              <p className="text-[10px] font-mono text-sf-muted">conf {(signal.confidence * 100).toFixed(0)}%</p>
-            </div>
+          {/* Top Row — Gauge + Breakdown */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card>
+              <CardBody className="flex flex-col items-center justify-center py-8">
+                <ScoreGauge score={signal.score} />
+                <div className="mt-4"><RecommendationBadge recommendation={signal.recommendation} /></div>
+                {signal.price != null && (
+                  <PriceTicker
+                    price={ticker?.price ?? signal.price}
+                    changePct={ticker?.price_change_pct}
+                    className="mt-3 text-sm text-text-secondary"
+                  />
+                )}
+                <p className="mt-2 font-mono text-xs text-text-subtle">confidence {(signal.confidence * 100).toFixed(0)}%</p>
+              </CardBody>
+            </Card>
 
-            <div className="card p-4 col-span-2">
-              <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Signal Breakdown</h3>
-              <div className="space-y-2.5">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4 text-brand" /> Signal Breakdown</CardTitle>
+              </CardHeader>
+              <CardBody className="space-y-3">
                 {sub.map((s) => (
                   <div key={s.name} className="flex items-center gap-3">
-                    <span className="w-24 text-xs text-sf-muted">{SIGNAL_LABEL[s.name] || s.name.replace("_", " ")}</span>
-                    <div className="flex-1 h-2 bg-sf-bg rounded-full overflow-hidden">
+                    <span className="w-28 text-xs font-medium text-text-secondary">{SIGNAL_LABEL[s.name] || s.name.replace("_", " ")}</span>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-secondary">
                       <div
-                        className="h-full rounded-full"
-                        style={{ width: `${s.value}%`, backgroundColor: SIGNAL_COLOR[s.name] || "#22C55E" }}
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ width: `${Math.max(0, Math.min(100, s.value))}%`, backgroundColor: SIGNAL_COLOR[s.name] || "#22C55E" }}
                       />
                     </div>
-                    <span className="w-10 text-right text-xs font-mono" style={{ color: SIGNAL_COLOR[s.name] || "#22C55E" }}>
-                      {s.value}
-                    </span>
+                    <span className="w-8 text-right text-xs font-mono tabular-nums text-text-secondary">{s.value}</span>
+                    <Badge tone={s.available ? "positive" : "warning"}>{s.available ? "live" : "n/a"}</Badge>
                   </div>
                 ))}
-              </div>
-            </div>
+                {signal.coverage != null && (
+                  <p className="pt-1 text-[11px] text-text-subtle font-mono">
+                    {signal.available_signals}/{signal.total_signals} live · coverage {(signal.coverage * 100).toFixed(0)}%
+                  </p>
+                )}
+              </CardBody>
+            </Card>
           </div>
 
           {/* Price + Volume Chart */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="card p-4">
-              <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Price (30d daily)</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={history}>
-                  <defs>
-                    <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22C55E" stopOpacity={0.15} />
-                      <stop offset="100%" stopColor="#22C55E" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#A1A1AA" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#A1A1AA" }} tickLine={false} axisLine={false} domain={["auto", "auto"]} tickFormatter={(v) => v.toLocaleString()} />
-                  <Tooltip contentStyle={{ background: "#18181B", border: "1px solid #27272A", borderRadius: 6, fontSize: 11 }} />
-                  <Area type="monotone" dataKey="close" stroke="#22C55E" strokeWidth={1.5} fill="url(#priceGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-positive" /> Price · 30d daily</CardTitle></CardHeader>
+              <CardBody>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={history}>
+                    <defs>
+                      <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#22C55E" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#22C55E" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} domain={["auto", "auto"]} tickFormatter={(v) => v.toLocaleString()} width={64} />
+                    <Tooltip contentStyle={{ background: "var(--sf-surface)", border: "1px solid var(--sf-border)", borderRadius: 10, fontSize: 12, color: "var(--sf-text)" }} />
+                    <Area type="monotone" dataKey="close" stroke="#22C55E" strokeWidth={2} fill="url(#priceGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardBody>
+            </Card>
 
-            <div className="card p-4">
-              <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Volume (30d daily)</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={history}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#A1A1AA" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#A1A1AA" }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "#18181B", border: "1px solid #27272A", borderRadius: 6, fontSize: 11 }} />
-                  <Bar dataKey="volume" fill="#A855F7" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-info" /> Volume · 30d daily</CardTitle></CardHeader>
+              <CardBody>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={history}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} width={64} />
+                    <Tooltip contentStyle={{ background: "var(--sf-surface)", border: "1px solid var(--sf-border)", borderRadius: 10, fontSize: 12, color: "var(--sf-text)" }} />
+                    <Bar dataKey="volume" fill="#1570EF" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardBody>
+            </Card>
           </div>
 
-          {/* Bottom Row — Live signal drivers */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="card p-4">
-              <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Signal Drivers</h3>
-              <div className="space-y-2">
+          {/* Bottom Row — Drivers + Interpretation */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle>Signal Drivers</CardTitle></CardHeader>
+              <CardBody className="space-y-3">
                 {sub.map((s) => (
-                  <div key={s.name} className="p-2 bg-sf-bg rounded border border-sf-border">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-mono font-medium">{SIGNAL_LABEL[s.name] || s.name}</span>
-                      <span className={clsx("text-[10px] px-1.5 py-0.5 rounded font-mono", s.available ? "bg-sf-accent/15 text-sf-accent" : "bg-orange-500/15 text-orange-400")}>
-                        {s.available ? "live" : "unavailable"}
-                      </span>
+                  <div key={s.name} className="rounded-lg bg-surface-secondary p-3 ring-1 ring-inset ring-border">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold font-mono text-text">{SIGNAL_LABEL[s.name] || s.name}</span>
+                      <Badge tone={s.available ? "positive" : "warning"}>{s.available ? "live" : "unavailable"}</Badge>
                     </div>
-                    <p className="text-xs text-sf-muted">{s.reason}</p>
-                    <div className="mt-1 text-[10px] text-sf-muted font-mono">value {s.value} · conf {(s.confidence * 100).toFixed(0)}%</div>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{s.reason}</p>
+                    <div className="mt-1.5 font-mono text-[11px] text-text-subtle">
+                      value {s.value} · conf {(s.confidence * 100).toFixed(0)}%
+                    </div>
                   </div>
                 ))}
-              </div>
-            </div>
+              </CardBody>
+            </Card>
 
-            <div className="card p-4">
-              <h3 className="text-xs font-medium text-sf-muted uppercase tracking-wider mb-3">Interpretation</h3>
-              <div className="space-y-2">
-                <div className="p-2 bg-sf-bg rounded border border-sf-border">
-                  <p className="text-xs text-sf-muted leading-relaxed">
-                    {signal.recommendation === "hold"
-                      ? "Signals are balanced — no strong directional edge right now. Focus on the confidence level: lower confidence means several components are near-neutral."
-                      : signal.recommendation === "strong_buy"
-                        ? "Multiple components are aligned bullish with elevated conviction. Strong set-up but always pair with your own risk management."
-                        : signal.recommendation === "buy"
-                          ? "A cautiously bullish composite. Confirm with trend + volume before sizing up."
-                          : signal.recommendation === "sell"
-                            ? "The composite is skewing bearish — mostly driven by weak technical/trend structure."
-                            : "A decisively bearish composite. High conviction short/risk-off posture."}
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Info className="h-4 w-4 text-brand" /> Interpretation</CardTitle></CardHeader>
+              <CardBody className="space-y-3">
+                <div className="rounded-lg bg-surface-secondary p-4 ring-1 ring-inset ring-border">
+                  <p className="text-[13px] leading-relaxed text-text-secondary">
+                    {INTERPRETATION[signal.recommendation] || "Signals are balanced — monitor for a clear directional edge."}
                   </p>
                 </div>
-                <div className="p-2 bg-sf-bg rounded border border-sf-border">
-                  <p className="text-xs text-sf-muted leading-relaxed">
-                    <span className="text-sf-accent">Data sources:</span> klines · open interest · funding rate · 24h ticker — all fetched live from Binance public market data.
+                <div className="rounded-lg bg-surface-secondary p-4 ring-1 ring-inset ring-border">
+                  <p className="text-[13px] leading-relaxed text-text-secondary">
+                    <span className="font-semibold text-text">Data sources:</span> klines · open interest · funding rate · 24h ticker — all fetched live from Binance public market data.
                   </p>
                 </div>
-              </div>
-            </div>
+              </CardBody>
+            </Card>
           </div>
         </>
       )}

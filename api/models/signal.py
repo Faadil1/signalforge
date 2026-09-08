@@ -13,6 +13,29 @@ SIGNAL_WEIGHTS = {
 
 SIGNAL_WEIGHTS_SUM = sum(SIGNAL_WEIGHTS.values())
 
+SIGNAL_META = {
+    "technical": {
+        "name": "Technical",
+        "description": "RSI + moving-average structure from daily klines",
+    },
+    "trend": {
+        "name": "Trend",
+        "description": "Price direction, higher-high/lower-low structure",
+    },
+    "funding": {
+        "name": "Funding",
+        "description": "Funding-rate extreme detection (crowding)",
+    },
+    "open_interest": {
+        "name": "Open Interest",
+        "description": "Positioning crowdedness vs. volume",
+    },
+    "volume": {
+        "name": "Volume",
+        "description": "Volume surge vs. 10-day average",
+    },
+}
+
 SignalName = Literal["technical", "trend", "open_interest", "funding", "volume"]
 
 Recommendation = Literal["strong_buy", "buy", "hold", "sell", "strong_sell"]

@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clsx } from "clsx";
+import { RefreshCw, Send, Terminal, CheckCircle2 } from "lucide-react";
+import { safeJson } from "@/lib/api";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 type Endpoint = { method: "GET" | "POST" | "DELETE"; path: string; description: string };
 type Usage = {
@@ -12,11 +18,11 @@ type Usage = {
   top_endpoints: { path: string; count: number }[];
 };
 
-const METHOD_COLOR = {
-  GET: "bg-sf-accent/15 text-sf-accent",
-  POST: "bg-blue-500/15 text-blue-400",
-  DELETE: "bg-sf-danger/15 text-sf-danger",
-};
+const METHOD_TONE = {
+  GET: "positive",
+  POST: "info",
+  DELETE: "negative",
+} as const;
 
 export default function PlaygroundPage() {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
@@ -37,8 +43,10 @@ export default function PlaygroundPage() {
         fetch("/api/v1/playground/usage"),
       ]);
       if (!epRes.ok || !usageRes.ok) throw new Error("Failed to load playground data");
-      const ep = await epRes.json();
-      const us = await usageRes.json();
+      const ep = await safeJson<{ endpoints: Endpoint[] }>(epRes, { endpoints: [] });
+      const us = await safeJson<Usage>(usageRes, {
+        total_calls: 0, calls_today: 0, avg_latency_ms: 0, uptime_s: 0, top_endpoints: [],
+      });
       setEndpoints(ep.endpoints || []);
       setUsage(us);
     } catch (e) {
@@ -95,133 +103,127 @@ export default function PlaygroundPage() {
         { label: "Calls Today", value: usage.calls_today.toLocaleString(), sub: "24h" },
         { label: "Avg Latency", value: `${Math.round(usage.avg_latency_ms)}ms`, sub: "last 24h" },
         { label: "Uptime", value: `${uptimeHours}h`, sub: "process" },
-        { label: "Top Endpoint", value: usage.top_endpoints[0]?.path.replace("/api/v1/", "") || "—", sub: `${usage.top_endpoints[0]?.count || 0} calls` },
-        { label: "Data Source", value: "Binance", sub: "free public API" },
       ]
-    : [0, 1, 2, 3, 4, 5].map((i) => ({ label: `—`, value: "·", sub: "…" }));
+    : [0, 1, 2, 3].map((i) => ({ label: "—", value: "·", sub: "…" }));
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">API Playground</h1>
-          <p className="text-sm text-sf-muted">Interactive live tester for SignalForge endpoints</p>
-        </div>
-        <button onClick={load} className="text-xs text-sf-muted px-3 py-1.5 rounded border border-sf-border hover:border-sf-accent transition-colors">
-          Refresh
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Agent API"
+        subtitle="Interactive live tester for SignalForge endpoints"
+        badge={<Badge tone="info"><Terminal className="h-3.5 w-3.5" /> Playground</Badge>}
+        actions={
+          <Button size="md" variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+        }
+      />
 
       {error && (
-        <div className="card p-3 text-xs text-sf-danger font-mono">
-          {error} — <button onClick={load} className="underline text-sf-accent">retry</button>
-        </div>
+        <Card className="p-4 text-sm text-negative font-mono">
+          {error} — <button onClick={load} className="underline text-brand">retry</button>
+        </Card>
       )}
 
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {STATS.map((s) => (
-          <div key={s.label + s.value} className="card p-3">
-            <p className="text-[10px] text-sf-muted uppercase tracking-wider">{s.label}</p>
-            <p className="text-lg font-mono font-semibold mt-0.5 truncate">{s.value}</p>
-            <p className="text-[10px] text-sf-muted truncate">{s.sub}</p>
-          </div>
+          <Card key={s.label + s.value} className="p-4">
+            <p className="text-[11px] uppercase tracking-wider text-text-subtle">{s.label}</p>
+            <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-text">{s.value}</p>
+            <p className="mt-0.5 text-[11px] text-text-subtle">{s.sub}</p>
+          </Card>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="card">
-          <div className="p-3 border-b border-sf-border">
-            <h3 className="text-sm font-medium">Request Builder</h3>
-          </div>
-
-          <div className="border-b border-sf-border max-h-48 overflow-y-auto">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>Request Builder</CardTitle></CardHeader>
+          <div className="max-h-52 overflow-y-auto border-b border-border px-2 py-2">
             {endpoints.map((ep, i) => (
               <div
                 key={i}
                 onClick={() => setSelected(i)}
                 className={clsx(
-                  "flex items-start gap-2 px-3 py-2 text-xs cursor-pointer transition-colors border-l-2",
-                  selected === i ? "bg-sf-bg border-l-sf-accent" : "border-l-transparent hover:bg-sf-bg/50"
+                  "flex cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-[13px] transition-colors",
+                  selected === i ? "bg-surface-secondary ring-1 ring-inset ring-border" : "hover:bg-surface-secondary/60"
                 )}
               >
-                <span className={clsx("px-1.5 py-0.5 rounded text-[10px] font-mono font-medium shrink-0", METHOD_COLOR[ep.method])}>
-                  {ep.method}
-                </span>
+                <Badge tone={METHOD_TONE[ep.method]} className="font-mono w-14 justify-center">{ep.method}</Badge>
                 <div className="min-w-0">
-                  <span className="font-mono text-sf-muted truncate block">{ep.path}</span>
-                  <span className="text-[10px] text-sf-muted block">{ep.description}</span>
+                  <span className="block truncate font-mono text-text">{ep.path}</span>
+                  <span className="block text-[11px] text-text-subtle">{ep.description}</span>
                 </div>
               </div>
             ))}
             {!endpoints.length && (
-              <div className="p-4 text-center text-xs text-sf-muted animate-pulse">Loading endpoints…</div>
+              <div className="p-4 text-center text-xs text-text-subtle animate-pulse">Loading endpoints…</div>
             )}
           </div>
 
-          <div className="p-3 space-y-3">
+          <CardBody className="space-y-3">
             <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Token</label>
+              <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Token</label>
               <input
                 type="text"
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                className="w-full bg-sf-bg border border-sf-border rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-sf-accent"
+                className="input font-mono"
               />
             </div>
             <div>
-              <label className="text-[10px] text-sf-muted uppercase tracking-wider block mb-1">Request</label>
-              <div className="bg-sf-bg border border-sf-border rounded p-2 text-xs font-mono text-sf-muted">
+              <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Request</label>
+              <div className="rounded-md bg-surface-secondary p-3 font-mono text-xs text-text-secondary ring-1 ring-inset ring-border">
                 <div>{endpoint ? `${endpoint.method} ${endpoint.path}` : "—"}</div>
-                <div>Content-Type: application/json</div>
+                <div className="text-text-subtle">Content-Type: application/json</div>
               </div>
             </div>
-            <button
-              onClick={handleSend}
-              disabled={loading || !endpoint}
-              className="w-full bg-sf-accent text-sf-bg text-xs font-medium py-2 rounded hover:bg-sf-accent/90 transition-colors disabled:opacity-50"
-            >
-              {loading ? "Sending…" : "Send Request"}
-            </button>
-          </div>
-        </div>
+            <Button onClick={handleSend} disabled={loading || !endpoint} loading={loading} className="w-full">
+              {!loading && <Send className="h-4 w-4" />} {loading ? "Sending…" : "Send Request"}
+            </Button>
+          </CardBody>
+        </Card>
 
-        <div className="card">
-          <div className="p-3 border-b border-sf-border flex items-center justify-between">
-            <h3 className="text-sm font-medium">Response</h3>
+        <Card>
+          <CardHeader>
+            <CardTitle>Response</CardTitle>
             <div className="flex items-center gap-3 text-xs">
               {status != null && (
-                <span className={clsx("font-mono font-medium", status >= 200 && status < 300 ? "text-sf-accent" : "text-sf-danger")}>
+                <span
+                  className={clsx(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono font-medium",
+                    status >= 200 && status < 300 ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"
+                  )}
+                >
+                  {status >= 200 && status < 300 && <CheckCircle2 className="h-3 w-3" />}
                   {status}
                 </span>
               )}
-              {latency != null && <span className="text-sf-muted font-mono">{latency}ms</span>}
+              {latency != null && <span className="font-mono text-text-subtle">{latency}ms</span>}
             </div>
-          </div>
-          <div className="p-3">
+          </CardHeader>
+          <CardBody>
             {response ? (
-              <pre className="bg-sf-bg border border-sf-border rounded p-3 text-xs font-mono text-sf-muted overflow-x-auto max-h-[27rem] overflow-y-auto whitespace-pre-wrap break-all">
+              <pre className="max-h-[24rem] overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-secondary p-4 font-mono text-[13px] text-text-secondary ring-1 ring-inset ring-border">
                 {response}
               </pre>
             ) : (
-              <div className="bg-sf-bg border border-sf-border rounded p-3 text-xs text-sf-muted h-40 flex items-center justify-center">
+              <div className="flex h-40 items-center justify-center rounded-md bg-surface-secondary text-xs text-text-subtle ring-1 ring-inset ring-border">
                 {loading ? "Fetching live response…" : "Select an endpoint and send a request"}
               </div>
             )}
-          </div>
+          </CardBody>
           {usage && usage.top_endpoints.length > 0 && (
-            <div className="p-3 border-t border-sf-border">
-              <p className="text-[10px] text-sf-muted uppercase tracking-wider mb-2">Top Endpoints by Calls</p>
-              <div className="space-y-1">
+            <div className="border-t border-border p-4">
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-text-subtle">Top Endpoints by Calls</p>
+              <div className="space-y-1.5">
                 {usage.top_endpoints.slice(0, 4).map((te) => (
                   <div key={te.path} className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-sf-muted truncate">{te.path}</span>
-                    <span className="font-mono text-sf-accent">{te.count}</span>
+                    <span className="truncate font-mono text-text-secondary">{te.path}</span>
+                    <span className="font-mono tabular-nums text-brand">{te.count}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );
