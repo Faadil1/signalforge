@@ -4,10 +4,10 @@
 
   # SignalForge
 
-  **5 independent market signals. 1 Composite Signal Score. Zero noise.**
+  **Evidence-bound market intelligence for humans and agents.**
 
-  A multi-signal crypto trading intelligence platform that fuses live Binance
-  market data into a single actionable 0-100 score.
+  Five complementary market evidence channels, explicit provenance, confidence gating,
+  and agent-ready Decision Packets built on live Binance public data.
 </div>
 
 <div align="center">
@@ -15,77 +15,172 @@
 [![License](https://img.shields.io/badge/license-MIT-22C55E.svg)](LICENSE)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-18181B.svg)](.github/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-3B82F6.svg)](api/requirements.txt)
-[![Framework](https://img.shields.io/badge/FastAPI-0.115-06B6D4.svg)](api/requirements.txt)
-[![Frontend](https://img.shields.io/badge/Next.js-14.2-18181B.svg)](web/package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6.svg)](web/package.json)
-[![Lint](https://img.shields.io/badge/linting-Ruff-D7FF64.svg)](ruff.toml)
-[![Tests](https://img.shields.io/badge/tests-pytest-09DE09.svg)](tests/)
-[![Hackathon](https://img.shields.io/badge/X--Agent%20MCP%20Hackathon-2026-A855F7.svg)](https://xagent.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-06B6D4.svg)](api/requirements.txt)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2-18181B.svg)](web/package.json)
+[![Hackathon](https://img.shields.io/badge/X--Agent%20MCP%20Hackathon-Open%20Innovation-A855F7.svg)](https://xagt.ai/hackathon?lang=en)
 
 </div>
 
 ---
 
-## About
+## What SignalForge does
 
-SignalForge computes a **Composite Signal Score (0-100)** for any crypto token
-by fusing five independent, real-time market signals derived from the free
-Binance public API. The score maps to a recommendation: `strong_buy`, `buy`,
-`hold`, `sell`, or `strong_sell`.
+SignalForge turns public crypto-market data into an explainable **Composite Signal Score (0–100)** and, more importantly, an **evidence-bound Decision Packet** for agents.
 
-Built for the **X-Agent AI MCP Hackathon 2026** (Open Innovation track),
-SignalForge ships a FastAPI backend, a Next.js dashboard, pre-built backtested
-strategies, signal-triggered alerts, and an interactive, agent-ready API
-playground.
+The system fuses five complementary evidence channels:
 
-| Spotlight | Value |
-|---|---|
-| Backend | Python FastAPI + Uvicorn |
-| Frontend | Next.js 14 + React 18 + Tailwind CSS 3 + Recharts |
-| Data Source | Binance public REST API (keyless) |
-| Signals | 5 real sources, weighted fusion |
+| Evidence channel | Weight | What it measures |
+|---|---:|---|
+| Technical | 25% | RSI + moving-average structure |
+| Trend | 25% | Price direction + market structure |
+| Funding | 20% | Funding-rate crowding |
+| Open Interest | 15% | Positioning intensity contextualized by price direction |
+| Volume | 15% | Directional volume surge vs. recent average |
 
----
+Missing evidence is **not** silently converted into a neutral score. Only available evidence contributes to the fusion denominator, while coverage and confidence determine whether a directional recommendation is allowed to exist at all.
 
-## Signal Fusion
-
-Each signal is normalized to **0-100**, weighted by its reliability, then fused
-into a single score. Weights are defined in
-[`api/models/signal.py`](api/models/signal.py).
-
-| Signal | Weight | Description |
-|--------|--------|-------------|
-| Technical | 25% | RSI + moving-average structure from daily klines |
-| Trend | 25% | Price direction, higher-high/lower-low structure |
-| Funding | 20% | Funding-rate extreme detection (crowding) |
-| Open Interest | 15% | Positioning crowdedness vs. volume |
-| Volume | 15% | Volume surge vs. 10-day average |
-
-The fused score is threshold-mapped to a recommendation:
-
-| Score | Recommendation |
-|-------|----------------|
-| >= 75 | `strong_buy` |
-| 60 - 74 | `buy` |
-| 40 - 59 | `hold` |
-| 25 - 39 | `sell` |
-| < 25 | `strong_sell` |
+SignalForge is built for the **X-Agent AI MCP Hackathon 2026 — Open Innovation track**.
 
 ---
 
-## Pre-Built Strategies
+## Trust model
 
-All strategies are **deterministic** — backtested on real Binance OHLCV klines
-with no fabricated values. Each strategy uses a simplified signal subset
-(SMA crossovers + RSI) applied to historical daily candles.
+Production mode is deliberately fail-closed.
+
+- Binance market evidence is fetched from public spot/futures endpoints.
+- Synthetic fallback is disabled by default.
+- `ALLOW_MOCK_FALLBACK=true` exists only for an explicitly labelled demo mode.
+- Any synthetic result is marked `data_mode=mock`.
+- Partial upstream failure is marked `data_mode=live_partial`.
+- Every Decision Packet includes source provenance and observed time.
+- Every Decision Packet declares `execution_authorized: false`.
+
+A directional recommendation is withheld when coverage or adjusted confidence is below the minimum evidence gate.
+
+---
+
+## Agent-native API
+
+### Decision Packet
+
+```http
+GET /api/v1/decision/BTC
+```
+
+Returns:
+
+- stance + composite score
+- confidence + coverage
+- actionability gate
+- 1–3 day decision horizon
+- market regime
+- supporting / contradicting / neutral evidence
+- provider + per-source provenance
+- invalidation conditions
+- snapshot identifier
+- `execution_authorized: false`
+
+### Signal Delta
+
+```http
+GET /api/v1/decision/BTC/delta
+```
+
+Establishes a baseline and then reports material changes in:
+
+- score
+- evidence drivers
+- stance
+- actionability
+
+The current hackathon implementation stores the comparison baseline in process memory and exposes that limitation explicitly.
+
+### Validation Lab
+
+```http
+GET /api/v1/validation/BTC?period_days=120&horizon_days=3
+```
+
+The first calibration pass evaluates the **price-derived 3/5 subset** (`technical`, `trend`, `volume`) against future returns using real Binance historical klines.
+
+It intentionally returns:
+
+```json
+{
+  "validation_scope": "price_derived_3_of_5",
+  "full_composite_validated": false,
+  "included_signals": ["technical", "trend", "volume"],
+  "omitted_signals": ["funding", "open_interest"]
+}
+```
+
+SignalForge does not claim full five-signal historical calibration until aligned historical funding and open-interest series are actually ingested.
+
+---
+
+## Judge proof surface
+
+Open:
+
+```text
+/judge
+```
+
+The page calls the public service directly and shows the raw responses for:
+
+1. `/health`
+2. `/.well-known/xagent-verification.json`
+3. `/api/v1/decision/BTC`
+4. `/api/v1/decision/BTC/delta`
+5. `/api/v1/validation/BTC?period_days=120&horizon_days=3`
+
+This keeps the judge-facing evidence separate from marketing copy.
+
+---
+
+## X-Agent deployment binding
+
+The public deployment must expose the exact reviewed Git commit.
+
+`GET /health`
+
+```json
+{
+  "status": "ok",
+  "service": "signalforge",
+  "commit": "<40-character-reviewed-commit>",
+  "project_slug": "signalforge",
+  "mock_fallback_enabled": false
+}
+```
+
+`GET /.well-known/xagent-verification.json`
+
+```json
+{
+  "schemaVersion": 1,
+  "slug": "signalforge",
+  "commit": "<40-character-reviewed-commit>"
+}
+```
+
+The commit is read from `GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA`, or `CF_PAGES_COMMIT_SHA`. `/health` reports `degraded` when no valid 40-character commit binding is available.
+
+The Next.js frontend proxies both verification endpoints to the backend so the same public origin can satisfy the judge contract.
+
+---
+
+## Backtesting
+
+SignalForge includes three deterministic experimental strategies:
 
 | Strategy | ID | Logic |
-|----------|----|-------|
-| Momentum Rider | `momentum` | Buys when short MA > long MA and price is rising; sells on MA crossunder |
-| Mean Reversion | `mean_reversion` | Buys oversold conditions (RSI < 30); sells overbought (RSI > 70) |
-| Sentiment Flow | `sentiment_flow` | Combines trend direction with RSI positioning for mean-reversion entries in trends |
+|---|---|---|
+| Momentum Rider | `momentum` | Short MA > long MA + rising price |
+| Mean Reversion | `mean_reversion` | RSI oversold/overbought |
+| Sentiment Flow | `sentiment_flow` | Trend structure + RSI positioning |
 
-Run a 90-day BTC backtest through the API:
+Backtests use real Binance OHLCV klines. Transaction costs now worsen both entry and exit prices, and trades are recorded on the actual next-candle execution date rather than the signal candle.
 
 ```bash
 curl "http://localhost:8000/api/v1/strategy/momentum/backtest?token=BTC&period=90d"
@@ -93,53 +188,39 @@ curl "http://localhost:8000/api/v1/strategy/momentum/backtest?token=BTC&period=9
 
 ---
 
-## Tech Stack
+## Other API endpoints
 
-### Backend ([`api/`](api/))
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/signal/{token}` | Composite signal + provenance + evidence gate |
+| GET | `/api/v1/signals` | Batch signals |
+| GET | `/api/v1/overview` | Market overview cards |
+| GET | `/api/v1/signal/{token}/history` | Binance OHLCV history |
+| GET | `/api/v1/decision/{token}` | Agent Decision Packet |
+| GET | `/api/v1/decision/{token}/delta` | Material-change detection |
+| GET | `/api/v1/validation/{token}` | Historical calibration lab |
+| GET | `/api/v1/strategies` | Strategy catalog when enabled |
+| GET | `/api/v1/strategy/{id}/backtest` | Experimental strategy backtest when enabled |
+| GET | `/api/v1/playground/endpoints` | Capability catalog |
+| GET | `/api/v1/playground/usage` | In-process usage summary |
 
-| Component | Technology |
-|-----------|------------|
-| Framework | FastAPI 0.115 |
-| ASGI Server | Uvicorn 0.30 |
-| HTTP Client | httpx 0.27 |
-| Validation | Pydantic 2.9 |
-| Linting | Ruff |
-| Testing | pytest |
-
-### Frontend ([`web/`](web/))
-
-| Component | Technology |
-|-----------|------------|
-| Framework | Next.js 14.2 |
-| UI | React 18.3 |
-| Styling | Tailwind CSS 3.4 |
-| Charting | Recharts 2.13 |
-| Language | TypeScript 5.6 |
+Webhook alerts still exist behind a feature flag, but are **disabled by default** for the public judge build until multi-tenant ownership and durable storage are completed.
 
 ---
 
-## Getting Started
+## Local setup
 
-### Prerequisites
-
-- Python 3.12+
-- Node.js 18+
-- npm 9+
-
-### 1. Backend
+### Backend
 
 ```bash
 cd api
 python -m venv .venv
-source .venv/bin/activate        # on Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-The API is available at `http://localhost:8000`. Interactive docs at
-`http://localhost:8000/docs`.
-
-### 2. Frontend
+### Frontend
 
 ```bash
 cd web
@@ -147,120 +228,61 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Next.js proxies `/api/*` to the backend on port
-`8000` (see [`web/next.config.js`](web/next.config.js)).
+The web service proxies `/api/*`, `/health`, and `/.well-known/xagent-verification.json` to `API_URL`.
 
-### Run both with Docker
+### Docker
 
 ```bash
 docker compose up --build
 ```
 
-> The backend runs on an internal network; the web service is published on port
-> `3000`. See [`docker-compose.yml`](docker-compose.yml).
-
 ---
 
-## Environment Variables
+## Environment
 
-The backend requires **no** API keys (Binance public data is keyless). The
-following variables are respected by the web service:
+See [`.env.example`](.env.example).
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `API_URL` | `http://localhost:8000` | Upstream API origin for the Next.js proxy |
-| `NEXT_PUBLIC_ENABLE_BACKTESTS` | `true` | Show the Strategy Lab page |
-| `NEXT_PUBLIC_ENABLE_ALERTS` | `true` | Show the Alerts page |
+Important judge settings:
 
-Copy `.env.example` to `.env` to configure.
-
----
-
-## Dashboard Pages
-
-| Route | Description |
-|-------|-------------|
-| `/` | Landing page — live score preview + product/API sections |
-| `/dashboard` | KPI cards + signal score table with filtering + detail sidebar |
-| `/token` | Token deep dive — score gauge, price/volume charts, signal drivers |
-| `/strategies` | Strategy Lab — backtests, equity curves, metrics, trade history |
-| `/alerts` | Alerts — create threshold webhooks + evaluate against live scores |
-| `/playground` | Agent API — interactive endpoint tester + real usage stats |
-
----
-
-## API Overview
-
-All endpoints are grouped under `/api/v1` and include live usage tracking.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/signals` | Composite signals for the default token set |
-| GET | `/api/v1/signal/{token}` | Composite signal for a single token |
-| GET | `/api/v1/overview` | Aggregated overview across tokens |
-| GET | `/api/v1/strategies` | List pre-built strategies |
-| GET | `/api/v1/strategy/{id}/backtest` | Run a deterministic backtest |
-| GET/POST | `/api/v1/alerts` | List / create alerts |
-| POST | `/api/v1/alerts/{id}/evaluate` | Evaluate an alert against live data |
-| GET | `/api/v1/playground/endpoints` | List available endpoints + usage stats |
-
----
-
-## Project Structure
-
-```
-signalforge/
-├── .github/workflows/       # CI pipeline (lint, typecheck, test, build)
-├── api/                     # Python FastAPI backend
-│   ├── main.py              # App entry point + CORS + usage middleware
-│   ├── models/              # Dataclasses: signal, strategy, alert
-│   ├── routes/              # signals, strategies, alerts, playground
-│   └── services/            # binance client, signal fusion, backtester, usage
-├── web/                     # Next.js frontend
-│   ├── src/app/             # Landing + dashboard pages
-│   ├── src/components/      # UI, layout, signal + chart components
-│   └── src/lib/             # API client, feature flags, signal + cn helpers
-├── tests/                   # pytest suite
-├── Dockerfile               # Backend container image
-├── docker-compose.yml       # Multi-service orchestration
-├── ruff.toml                # Python lint/format config
-└── LICENSE                  # MIT
+```env
+ALLOW_MOCK_FALLBACK=false
+ENABLE_ALERTS=false
+ENABLE_BACKTESTS=true
+PROJECT_SLUG=signalforge
+GIT_COMMIT=<exact-reviewed-commit>
 ```
 
+Do not fabricate the commit or deployment URL. The final X-Agent package must bind to the actual reviewed deployment.
+
 ---
 
-## Development
+## Quality gates
 
-### Backend lint & test
+Backend:
 
 ```bash
 cd api
 ruff check .
 ruff format --check .
-pytest ../tests
+pytest ../tests -v
 ```
 
-### Frontend lint, typecheck & build
+Frontend:
 
 ```bash
 cd web
+npm ci
 npm run lint
 npx tsc --noEmit
 npm run build
 ```
 
----
-
-## Contributing
-
-Contributions are welcome. Please read
-[`CONTRIBUTING.md`](CONTRIBUTING.md) first, and review the
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). Report security issues to the email
-address in [`SECURITY.md`](SECURITY.md).
+The canonical judge checklist is in [`JUDGE-READY.md`](JUDGE-READY.md). Submission packaging requirements are tracked in [`docs/XAGENT-SUBMISSION-CHECKLIST.md`](docs/XAGENT-SUBMISSION-CHECKLIST.md).
 
 ---
 
 ## License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE).
+
 Copyright (c) 2026 Mobolaji Opeyemi Bolatito.
