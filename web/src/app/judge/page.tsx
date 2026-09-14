@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Database, FileCheck2, ShieldCheck, Zap } from "lucide-react";
 
@@ -23,7 +23,7 @@ export default function JudgeProofPage() {
   const [probes, setProbes] = useState<Probe[]>(TARGETS.map((target) => ({ ...target, status: null, data: null })));
   const [updatedAt, setUpdatedAt] = useState<string>("");
 
-  const run = async () => {
+  const run = useCallback(async () => {
     const next = await Promise.all(
       TARGETS.map(async (target) => {
         try {
@@ -37,17 +37,21 @@ export default function JudgeProofPage() {
           }
           return { ...target, status: response.status, data };
         } catch (error) {
-          return { ...target, status: 0, data: { error: error instanceof Error ? error.message : "request failed" } };
+          return {
+            ...target,
+            status: 0,
+            data: { error: error instanceof Error ? error.message : "request failed" },
+          };
         }
       })
     );
     setProbes(next);
     setUpdatedAt(new Date().toISOString());
-  };
+  }, []);
 
   useEffect(() => {
     void run();
-  }, []);
+  }, [run]);
 
   return (
     <main className="min-h-screen bg-surface-app px-5 py-8 text-text md:px-8">
@@ -60,20 +64,40 @@ export default function JudgeProofPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Judge proof surface</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight md:text-5xl">Evidence before recommendation.</h1>
             <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-secondary md:text-base">
-              This page exercises the exact deployment binding, agent decision contract, material-change layer, and historical calibration that reviewers can call independently.
+              This page exercises the exact deployment binding, agent decision contract, material-change layer,
+              and historical calibration that reviewers can call independently.
             </p>
           </div>
-          <button onClick={() => void run()} className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90">
+          <button
+            onClick={() => void run()}
+            className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+          >
             Re-run proof
           </button>
         </div>
 
         <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { icon: Database, title: "Real data", copy: "Production fails closed instead of silently fabricating Binance evidence." },
-            { icon: ShieldCheck, title: "Confidence gated", copy: "Directional stance can be withheld when coverage or confidence is insufficient." },
-            { icon: Zap, title: "Agent native", copy: "Decision Packets expose evidence, contradictions, horizon, regime and invalidation." },
-            { icon: FileCheck2, title: "No authority", copy: "Every agent packet declares execution_authorized: false." },
+            {
+              icon: Database,
+              title: "Real data",
+              copy: "Production fails closed instead of silently fabricating Binance evidence.",
+            },
+            {
+              icon: ShieldCheck,
+              title: "Confidence gated",
+              copy: "Directional stance can be withheld when coverage or confidence is insufficient.",
+            },
+            {
+              icon: Zap,
+              title: "Agent native",
+              copy: "Decision Packets expose evidence, contradictions, horizon, regime and invalidation.",
+            },
+            {
+              icon: FileCheck2,
+              title: "No authority",
+              copy: "Every agent packet declares execution_authorized: false.",
+            },
           ].map(({ icon: Icon, title, copy }) => (
             <div key={title} className="card p-4">
               <Icon className="h-5 w-5 text-brand" />
@@ -95,7 +119,11 @@ export default function JudgeProofPage() {
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     {ok && <CheckCircle2 className="h-4 w-4 text-positive" />}
-                    <span className={ok ? "text-positive" : probe.status === null ? "text-text-subtle" : "text-negative"}>
+                    <span
+                      className={
+                        ok ? "text-positive" : probe.status === null ? "text-text-subtle" : "text-negative"
+                      }
+                    >
                       {probe.status === null ? "loading" : probe.status === 0 ? "offline" : probe.status}
                     </span>
                   </div>
@@ -109,7 +137,10 @@ export default function JudgeProofPage() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-xs text-text-secondary">
-          <span>Validation Lab intentionally labels its first calibration as price-derived 3/5 rather than overstating full five-signal validation.</span>
+          <span>
+            Validation Lab intentionally labels its first calibration as price-derived 3/5 rather than overstating
+            full five-signal validation.
+          </span>
           <span className="font-mono text-text-subtle">{updatedAt || "running checks…"}</span>
         </div>
       </div>
