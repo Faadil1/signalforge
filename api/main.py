@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from contextlib import asynccontextmanager
 
@@ -9,29 +10,20 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routes import alerts, playground, signals, strategies, tickers
+from routes import alerts, decision, playground, signals, strategies, tickers, validation
 from services.binance_client import binance
 from services.config import Settings, get_settings
 from services.errors import INTERNAL_ERROR
 from services.usage import usage
 
 logger = logging.getLogger(__name__)
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(
-        title="SignalForge",
-        description="Multi-signal crypto trading intelligence computed from live Binance market data",
-        version="0.1.0",
-        lifespan=lifespan,
-    )
-
+    app = FastAPI(title="SignalForge", description="Evidence-bound crypto market decision intelligence from live Binance market data", version="0.2.0", lifespan=lifespan)
     app.state.settings = settings
-
-    # --- CORS --------------------------------------------------------------
-    # Dynamic origins from CORS_ORIGINS env var (comma-separated), or "*".
-    # localhost:3000 is always accepted during local dev.
     origins = list(settings.cors_origins)
     allow_credentials = False
     if not origins or origins == ["*"]:
@@ -41,50 +33,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             origins = origins + ["http://localhost:3000"]
         allow_origins = origins
         allow_credentials = True
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allow_origins,
-        allow_credentials=allow_credentials,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    app.add_middleware(CORSMiddleware, allow_origins=allow_origins, allow_credentials=allow_credentials, allow_methods=["*"], allow_headers=["*"])
 
-    # --- Global exception handling (never return an HTML 500) --------------
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "ok": False,
-                "error": {
-                    "code": INTERNAL_ERROR,
-                    "message": "Internal server error",
-                },
-            },
-        )
+        return JSONResponse(status_code=500, content={"ok": False, "error": {"code": INTERNAL_ERROR, "message": "Internal server error"}})
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(
-            status_code=422,
-            content={
-                "ok": False,
-                "error": {
-                    "code": "VALIDATION_ERROR",
-                    "message": "Request validation failed",
-                    "detail": exc.errors(),
-                },
-            },
-        )
+        return JSONResponse(status_code=422, content={"ok": False, "error": {"code": "VALIDATION_ERROR", "message": "Request validation failed", "detail": exc.errors()}})
 
     @app.middleware("http")
     async def track_usage(request: Request, call_next):
         start = time.perf_counter()
-        try:
-            response = await call_next(request)
-        except Exception:
-            raise
+        response = await call_next(request)
         latency_ms = (time.perf_counter() - start) * 1000
         if request.url.path.startswith("/api/"):
             usage.record(request.url.path, latency_ms)
@@ -93,6 +56,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(signals.router, prefix="/api/v1")
     app.include_router(tickers.router, prefix="/api/v1")
     app.include_router(playground.router, prefix="/api/v1")
+    app.include_router(decision.router, prefix="/api/v1")
+    app.include_router(validation.router, prefix="/api/v1")
     if settings.enable_backtests:
         app.include_router(strategies.router, prefix="/api/v1")
     if settings.enable_alerts:
@@ -100,14 +65,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {"status": "ok", "service": "signalforge"}
+        commit_valid = bool(COMMIT_RE.match(settings.git_commit))
+        return {"status": "ok" if commit_valid else "degraded", "service": "signalforge", "commit": settings.git_commit, "project_slug": settings.project_slug, "mock_fallback_enabled": settings.allow_mock_fallback}
+
+    @app.get("/.well-known/xagent-verification.json")
+    async def xagent_verification():
+        return {"schemaVersion": 1, "slug": settings.project_slug, "commit": settings.git_commit}
 
     return app
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await binance.configure()
+    settings: Settings = app.state.settings
+    await binance.configure(timeout_s=settings.binance_timeout_s, max_retries=settings.binance_max_retries, max_concurrency=settings.binance_max_concurrency, allow_mock_fallback=settings.allow_mock_fallback)
     try:
         yield
     finally:
@@ -115,4 +86,3 @@ async def lifespan(app: FastAPI):
 
 
 app = create_app()
-

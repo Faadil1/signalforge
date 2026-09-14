@@ -4,40 +4,37 @@ import os
 from dataclasses import dataclass, field
 
 
+def _first_nonempty(*values: str | None, default: str = "") -> str:
+    for value in values:
+        if value and value.strip():
+            return value.strip()
+    return default
+
+
 @dataclass(frozen=True)
 class Settings:
-    # Feature flags (disabled by default for safe first deploy)
     enable_alerts: bool = False
     enable_backtests: bool = False
-
-    # CORS
+    allow_mock_fallback: bool = False
+    project_slug: str = "signalforge"
+    git_commit: str = "unknown"
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:3000"])
-
-    # Cache TTLs (seconds)
     signal_cache_ttl: int = 45
     candle_cache_ttl: int = 300
     error_cache_ttl: int = 10
     ticker_cache_ttl: int = 3
     cache_max_entries: int = 500
-
-    # Rate limiting
     rate_limit_enabled: bool = True
-    rate_limit_general: int = 120  # per minute
+    rate_limit_general: int = 120
     rate_limit_signal: int = 60
     rate_limit_overview: int = 30
     rate_limit_ticker: int = 180
     rate_limit_backtest: int = 10
     rate_limit_alert: int = 30
-
-    # Batch limits
     max_batch_tokens: int = 10
-
-    # Binance client
     binance_timeout_s: float = 10.0
     binance_max_retries: int = 2
     binance_max_concurrency: int = 5
-
-    # Backtest
     backtest_fee_bps: int = 10
     backtest_slippage_bps: int = 5
     backtest_min_candles: int = 31
@@ -73,10 +70,19 @@ class Settings:
         return [o.strip() for o in value.split(",") if o.strip()]
 
     @classmethod
-    def from_env(cls) -> Settings:
+    def from_env(cls) -> "Settings":
+        commit = _first_nonempty(
+            os.getenv("GIT_COMMIT"),
+            os.getenv("VERCEL_GIT_COMMIT_SHA"),
+            os.getenv("CF_PAGES_COMMIT_SHA"),
+            default="unknown",
+        )
         return cls(
             enable_alerts=cls._parse_bool(os.getenv("ENABLE_ALERTS"), False),
             enable_backtests=cls._parse_bool(os.getenv("ENABLE_BACKTESTS"), False),
+            allow_mock_fallback=cls._parse_bool(os.getenv("ALLOW_MOCK_FALLBACK"), False),
+            project_slug=os.getenv("PROJECT_SLUG", "signalforge").strip() or "signalforge",
+            git_commit=commit,
             cors_origins=cls._parse_cors(os.getenv("CORS_ORIGINS"), ["http://localhost:3000"]),
             signal_cache_ttl=cls._parse_int(os.getenv("SIGNAL_CACHE_TTL"), 45),
             candle_cache_ttl=cls._parse_int(os.getenv("CANDLE_CACHE_TTL"), 300),
