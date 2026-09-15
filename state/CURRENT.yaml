@@ -1,14 +1,15 @@
 project: signalforge
-workstream: evidence_failure_hardening
-status: DEPLOYMENT_PREPARED_AWAITING_RAILWAY_CONNECTION
-branch: evidence-failure-hardening
-base_branch: main
-base_commit: 1aa3ac7a47d5a90d5d9fd9b4250a97e21afd7bf8
-pull_request: 2
+workstream: cloudflare_runtime
+status: CLOUDFLARE_PREDEPLOY_READY_AWAITING_CREDENTIAL_BINDING
+branch: cloudflare-runtime
+stacked_on_branch: evidence-failure-hardening
+stacked_on_commit: 71e44be24d4d66100fd8bb319b56a11c49c3fd8a
+pull_request_hardening: 2
 canonical_principles:
   - "Real failure > fake success"
   - "Evidence before recommendation. Refusal before false confidence."
   - "AVAILABLE != FRESH != CONSISTENT != ACTIONABLE"
+  - "Bundle success != runtime proof"
 evidence_model:
   statuses:
     - OBSERVED_EXTERNAL
@@ -33,53 +34,77 @@ implemented:
   - adversarial_qa
   - deterministic_demo_runbook
   - real_failure_evidence_record
-  - docker_runtime_honors_platform_port
-  - railway_only_two_service_deployment_plan
-  - same_origin_frontend_proxy_contract
-  - runtime_deployment_runbook
-verified_ci:
-  deployment_preparation_run: 28
-  deployment_preparation_sha: 28b4246b381f8007b32e05d523b74426517c4737
-  backend:
-    lint: green
-    format: green
-    tests: green
-  frontend:
-    dependency_audit: green
-    lint: green
-    typecheck: green
-    build: green
+  - cloudflare_single_worker_architecture
+  - nextjs_static_export_for_worker_assets
+  - fastapi_asgi_python_worker_adapter
+  - httpx2_cloudflare_runtime_adapter
+  - pyodide_compatible_pydantic_runtime
+  - same_origin_static_and_api_surface
+  - commit_bound_cloudflare_deploy_workflow
+  - automated_six_endpoint_runtime_verification
+  - runtime_evidence_artifact_retention_90_days
+verified_cloudflare_compatibility:
+  run: 8
+  sha: 66d3e823cb22cc5413036bcaf35382e361d0e1c5
+  next_static_export: green
+  judge_asset_exported: true
+  pyodide_dependencies: green
+  worker_dry_run_compile: green
 deployment_plan:
-  platform: Railway
-  backend_service: signalforge-api
-  backend_root: /
-  frontend_service: signalforge-web
-  frontend_root: /web
-  canonical_judge_origin: frontend_public_domain
-  backend_healthcheck: /health
-  required_same_origin_routes:
+  platform: Cloudflare Workers
+  topology: single_worker_with_static_assets
+  worker_name: signalforge
+  frontend_assets: web/out
+  backend_entrypoint: api/worker.py
+  worker_config: wrangler.jsonc
+  canonical_judge_origin: single_worker_public_domain
+  worker_first_routes:
+    - /api/*
+    - /health
+    - /.well-known/*
+    - /docs*
+    - /openapi.json
+  required_same_origin_calls:
     - /health
     - /.well-known/xagent-verification.json
     - /api/v1/decision/BTC
     - /api/v1/decision/BTC/delta
     - /api/v1/validation/BTC?period_days=120&horizon_days=3
     - /api/v1/evidence/negative-path
+credential_contract:
+  github_repository_secrets:
+    - CLOUDFLARE_ACCOUNT_ID
+    - CLOUDFLARE_API_TOKEN
+  token_scope: minimum_permissions_to_edit_workers_on_target_account
+  credentials_committed_to_repo: false
+runtime_posture:
+  project_slug: signalforge
+  allow_mock_fallback: false
+  alerts_enabled: false
+  execution_authorized: false
+  exact_commit_binding: required
+  same_origin_judge_surface: required
+cloudflare_plan_gate:
+  workers_free_cpu_ms_per_dynamic_request: 10
+  response_if_resource_limit_repeats: upgrade_worker_plan_or_change_backend_runtime_then_rerun_full_proof
 pending:
-  - connect_railway_plugin
-  - create_backend_and_frontend_services
-  - set_exact_review_commit_and_runtime_variables
-  - deploy_both_services_from_same_commit
+  - ensure_cloudflare_credentials_exist_as_github_repository_secrets
+  - create_controlled_deploy_trigger_commit
+  - deploy_exact_trigger_commit
   - verify_same_origin_public_endpoints
-  - archive_runtime_verification_responses
-  - merge_pr_2_after_review_if_authorized
+  - archive_runtime_verification_artifact
+  - create_or_update_stacked_runtime_pr
+  - merge_only_after_review_and_authorization
+  - redeploy_exact_final_merged_review_commit
   - complete_official_source_verification_rights_package
 submission_ready: false
 stop_conditions:
-  - frontend_backend_commit_mismatch
   - unreachable_public_runtime
   - deployment_commit_mismatch
+  - health_commit_not_exact_40_char_deployed_sha
   - mock_presented_as_live
   - stale_or_unknown_evidence_presented_as_healthy
   - negative_path_not_reproducible
+  - cloudflare_resource_limit_breaks_required_calls
   - unsupported_performance_or_execution_claim
   - incomplete_source_verification_or_rights_archive
