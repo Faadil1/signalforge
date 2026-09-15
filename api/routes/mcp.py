@@ -6,12 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
-from services.decision_service import (
-    DECISION_CONTRACT_VERSION,
-    POLICY_VERSION,
-    compare_with_live_decision,
-    get_decision_packet,
-)
+from services.decision_service import compare_with_live_decision, get_decision_packet
 from services.evidence_service import build_negative_path_evidence, build_resilience_benchmark
 from services.rate_limit import rate_limit
 from services.symbols import is_valid_token, normalize_token
