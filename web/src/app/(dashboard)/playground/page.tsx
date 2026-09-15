@@ -95,14 +95,12 @@ export default function PlaygroundPage() {
     }
   };
 
-  const uptimeHours = usage ? Math.round(usage.uptime_s / 3600) : 0;
-
   const STATS = usage
     ? [
-        { label: "Calls Total", value: usage.total_calls.toLocaleString(), sub: "since start" },
-        { label: "Calls Today", value: usage.calls_today.toLocaleString(), sub: "24h" },
-        { label: "Avg Latency", value: `${Math.round(usage.avg_latency_ms)}ms`, sub: "last 24h" },
-        { label: "Uptime", value: `${uptimeHours}h`, sub: "process" },
+        { label: "Calls", value: usage.total_calls.toLocaleString(), sub: "current process only" },
+        { label: "Calls Today", value: usage.calls_today.toLocaleString(), sub: "process-local counter" },
+        { label: "Avg Latency", value: `${Math.round(usage.avg_latency_ms)}ms`, sub: "process-local sample" },
+        { label: "Telemetry Scope", value: "LOCAL", sub: "resets with worker isolate" },
       ]
     : [0, 1, 2, 3].map((i) => ({ label: "—", value: "·", sub: "…" }));
 
@@ -110,7 +108,7 @@ export default function PlaygroundPage() {
     <div className="space-y-6">
       <PageHeader
         title="Agent API"
-        subtitle="Interactive live tester for SignalForge endpoints"
+        subtitle="Interactive live tester · usage telemetry is process-local, not global uptime analytics"
         badge={<Badge tone="info"><Terminal className="h-3.5 w-3.5" /> Playground</Badge>}
         actions={
           <Button size="md" variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" /> Refresh</Button>
@@ -212,7 +210,7 @@ export default function PlaygroundPage() {
           </CardBody>
           {usage && usage.top_endpoints.length > 0 && (
             <div className="border-t border-border p-4">
-              <p className="mb-2 text-[11px] uppercase tracking-wider text-text-subtle">Top Endpoints by Calls</p>
+              <p className="mb-2 text-[11px] uppercase tracking-wider text-text-subtle">Process-local endpoint calls</p>
               <div className="space-y-1.5">
                 {usage.top_endpoints.slice(0, 4).map((te) => (
                   <div key={te.path} className="flex items-center justify-between text-xs">
