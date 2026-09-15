@@ -17,13 +17,17 @@ completed:
   - Added SUBMISSION-ASSURANCE, JUDGE-DEMO and ADVERSARIAL-QA docs.
   - Updated README, JUDGE-READY and XAGENT-SUBMISSION-CHECKLIST for consistent claims.
   - Corrected stale README Next.js badge from 14.2 to 16.3.5.
+verified_before_state_sync:
+  ci_run: 23
+  sha: 2071d6cdec282e8d1f97cc8d6249870513345a59
+  backend: green
+  frontend: green
 next_steps:
-  - Inspect latest GitHub Actions run for PR #2.
-  - Fix any backend Ruff/format/test failure and any frontend audit/lint/type/build failure.
-  - Re-run until CI is green on the exact branch head.
+  - Verify CI on the final state-only synchronization commit.
   - Update PR #2 body with final verified SHA and CI run.
-  - Move PR #2 from draft to ready only after exact-head CI is green.
-  - Do not claim SUBMISSION_READY until public deployment proof is archived.
+  - Move PR #2 from draft to ready after exact-head CI is green.
+  - Do not merge automatically; wait for review/authorization.
+  - After merge, deploy the exact review commit and archive same-origin runtime proof.
 post_merge_runtime_gate:
   required_calls:
     - /health
@@ -38,4 +42,4 @@ post_merge_runtime_gate:
     exact_commit_binding: true
     same_origin_judge_surface: true
 final_state_target: SUBMISSION_READY
-current_state: CODE_HARDENING_AWAITING_GREEN_CI
+current_state: CODE_READY_AWAITING_FINAL_EXACT_HEAD_CI

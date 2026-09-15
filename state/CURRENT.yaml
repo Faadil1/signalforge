@@ -1,6 +1,6 @@
 project: signalforge
 workstream: evidence_failure_hardening
-status: HARDENING_IN_PROGRESS
+status: CODE_READY_AWAITING_REVIEW
 branch: evidence-failure-hardening
 base_branch: main
 base_commit: 1aa3ac7a47d5a90d5d9fd9b4250a97e21afd7bf8
@@ -33,8 +33,20 @@ implemented:
   - adversarial_qa
   - deterministic_demo_runbook
   - real_failure_evidence_record
+verified_ci:
+  prior_exact_head_run: 23
+  prior_exact_head_sha: 2071d6cdec282e8d1f97cc8d6249870513345a59
+  backend:
+    lint: green
+    format: green
+    tests: green
+  frontend:
+    dependency_audit: green
+    lint: green
+    typecheck: green
+    build: green
 pending:
-  - final_branch_ci_green
+  - final_state_only_commit_ci_green
   - merge_pr_2_after_review
   - deploy_exact_review_commit
   - verify_same_origin_public_endpoints
