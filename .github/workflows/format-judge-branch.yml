@@ -1,0 +1,38 @@
+name: Format judge branch
+
+on:
+  push:
+    branches: [judge-ready-build]
+
+permissions:
+  contents: write
+
+jobs:
+  ruff-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: judge-ready-build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ruff
+        run: pip install ruff==0.16.7
+
+      - name: Apply Ruff format
+        run: ruff format api
+
+      - name: Commit format-only changes
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add api
+          git commit -m "style: apply Ruff formatting"
+          git push origin HEAD:judge-ready-build
