@@ -88,3 +88,9 @@ docker-compose.override.yml
 *.cert
 *.crt
 .pki/
+
+# -- Cloudflare Python Workers -----------------
+python_modules/
+pylock.toml
+.venv-workers/
+.wrangler/
