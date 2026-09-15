@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Database, FileCheck2, ShieldCheck, Zap } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Database, FileCheck2, ShieldCheck, Zap } from "lucide-react";
 
 const TARGETS = [
   { label: "Deployment binding", path: "/health" },
@@ -10,6 +10,7 @@ const TARGETS = [
   { label: "Decision Packet", path: "/api/v1/decision/BTC" },
   { label: "Signal Delta", path: "/api/v1/decision/BTC/delta" },
   { label: "Validation Lab", path: "/api/v1/validation/BTC?period_days=120&horizon_days=3" },
+  { label: "Real failure / negative path", path: "/api/v1/evidence/negative-path" },
 ];
 
 type Probe = {
@@ -64,8 +65,8 @@ export default function JudgeProofPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">Judge proof surface</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight md:text-5xl">Evidence before recommendation.</h1>
             <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-secondary md:text-base">
-              This page exercises the exact deployment binding, agent decision contract, material-change layer,
-              and historical calibration that reviewers can call independently.
+              This page exercises the deployment binding, decision contract, material-change layer, bounded validation,
+              and a real-failure-backed negative path that can refuse false confidence.
             </p>
           </div>
           <button
@@ -76,7 +77,7 @@ export default function JudgeProofPage() {
           </button>
         </div>
 
-        <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {[
             {
               icon: Database,
@@ -85,8 +86,8 @@ export default function JudgeProofPage() {
             },
             {
               icon: ShieldCheck,
-              title: "Confidence gated",
-              copy: "Directional stance can be withheld when coverage or confidence is insufficient.",
+              title: "Freshness gated",
+              copy: "Available data can still be stale; non-fresh live evidence is removed before fusion.",
             },
             {
               icon: Zap,
@@ -97,6 +98,11 @@ export default function JudgeProofPage() {
               icon: FileCheck2,
               title: "No authority",
               copy: "Every agent packet declares execution_authorized: false.",
+            },
+            {
+              icon: AlertTriangle,
+              title: "Negative path",
+              copy: "A sourced real incident motivates a controlled refusal test; the fixture is not a historical replay.",
             },
           ].map(({ icon: Icon, title, copy }) => (
             <div key={title} className="card p-4">
@@ -138,8 +144,8 @@ export default function JudgeProofPage() {
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-xs text-text-secondary">
           <span>
-            Validation Lab intentionally labels its first calibration as price-derived 3/5 rather than overstating
-            full five-signal validation.
+            Real failure facts stay separate from controlled fixtures. Validation remains explicitly price-derived 3/5;
+            no full-composite or historical-replay claim is made.
           </span>
           <span className="font-mono text-text-subtle">{updatedAt || "running checks…"}</span>
         </div>
