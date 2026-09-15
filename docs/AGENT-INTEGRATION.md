@@ -6,12 +6,21 @@ Its job is not to place trades or replace an execution policy. Its job is to ans
 
 > Is the current market evidence usable enough to support a research handoff, or should the agent refuse and refresh evidence?
 
+## Integration surfaces
+
+SignalForge exposes the same bounded product contract through two read-only surfaces:
+
+- REST under `/api/v1/*`
+- stateless MCP at `/mcp`, protocol version `2026-07-28`
+
+Both surfaces preserve the same authority boundary: `execution_authorized: false`.
+
 ## Preferred agent loop
 
-1. `GET /api/v1/decision/{token}`
+1. Call `get_decision_packet` through MCP or `GET /api/v1/decision/{token}` through REST.
 2. Inspect `actionability`, `coverage`, `confidence`, `data_quality`, and `agent_next_action`.
 3. Persist the returned Decision Packet in the caller if material-change tracking matters.
-4. Later, send that prior packet to `POST /api/v1/decision/{token}/compare`.
+4. Later, send that prior packet to `compare_decision_packet` or `POST /api/v1/decision/{token}/compare`.
 5. Never treat SignalForge output as execution authority.
 
 ## Decision contract
@@ -48,15 +57,22 @@ All three states preserve `execution_authorized: false`.
 
 `GET /api/v1/decision/{token}/delta` is a convenience endpoint backed by **process-local memory**. It is intentionally labelled non-durable because a serverless Worker may start a new isolate.
 
-For durable agent workflows, use:
+For durable agent workflows, use either:
 
-`POST /api/v1/decision/{token}/compare`
+- MCP tool `compare_decision_packet`, or
+- `POST /api/v1/decision/{token}/compare`
 
-with a prior Decision Packet as the JSON body. SignalForge fetches a fresh packet and compares it to the caller-supplied baseline. This makes the comparison reproducible across isolates without claiming storage SignalForge does not provide.
+with a prior Decision Packet as the baseline. SignalForge fetches a fresh packet and compares it to the caller-supplied baseline. This makes the comparison reproducible across isolates without claiming storage SignalForge does not provide.
 
 ## Evidence Resilience Benchmark
 
+REST:
+
 `GET /api/v1/evidence/resilience-benchmark`
+
+MCP:
+
+`run_evidence_resilience_benchmark`
 
 This is a deterministic **policy-conformance** benchmark, not a trading-performance benchmark.
 
@@ -73,9 +89,40 @@ The benchmark explicitly does **not** claim historical replay, profitability, or
 
 `GET /api/v1/capabilities`
 
-This endpoint exposes the current tool contracts, state model, side-effect boundary, authority boundary, versions, and safe-failure semantics in one machine-readable response.
+This endpoint exposes the current tool contracts, state model, side-effect boundary, authority boundary, versions, MCP endpoint, and safe-failure semantics in one machine-readable response.
 
-SignalForge currently exposes a REST capability surface and tool-ready contracts. It does **not** claim that an MCP transport is included in this build.
+## MCP 2026-07-28 transport
+
+Endpoint:
+
+`POST /mcp`
+
+SignalForge implements the stateless MCP `2026-07-28` request/response shape needed by its reviewed read-only capability surface.
+
+Supported methods:
+
+- `server/discover`
+- `tools/list`
+- `tools/call`
+
+Current MCP tools:
+
+- `get_decision_packet`
+- `compare_decision_packet`
+- `validate_price_signals`
+- `inspect_negative_path`
+- `run_evidence_resilience_benchmark`
+
+The transport validates the protocol-version, method and tool-name headers against the JSON-RPC body, validates browser `Origin` when present, exposes deterministic tool metadata, and returns both text and `structuredContent` for tool results.
+
+It is intentionally stateless:
+
+- no sticky session requirement
+- no server-side baseline storage requirement
+- no wallet/session authority
+- no execution side effects
+
+`GET /mcp` returns `405`; the reviewed MCP surface is POST request/response rather than a streaming GET transport.
 
 ## Side effects and authority
 
@@ -91,12 +138,24 @@ An external execution authority is always required downstream.
 
 ## Errors and retry behavior
 
+REST:
+
 - Invalid token syntax: HTTP `422`
 - Invalid/mismatched comparison baseline: HTTP `422`
 - Upstream evidence acquisition failure that prevents a packet: fail closed rather than synthesize a live result
-- Callers should retry evidence acquisition with their own bounded backoff policy; a retry must not be treated as authorization to execute
+
+MCP:
+
+- malformed JSON-RPC request: JSON-RPC error
+- unsupported protocol version: fail closed
+- header/body method or tool-name mismatch: fail closed
+- invalid tool arguments: tool/request error without market side effects
+
+Callers should retry evidence acquisition with their own bounded backoff policy; a retry must never be treated as authorization to execute.
 
 ## Recommended reviewer probes
+
+The currently deployed production version may lag this branch until an exact-commit redeploy. After this branch is deployed and verified, representative probes are:
 
 ```bash
 curl https://signalforge.faadil-casecraft.workers.dev/api/v1/capabilities
@@ -104,4 +163,6 @@ curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC
 curl https://signalforge.faadil-casecraft.workers.dev/api/v1/evidence/resilience-benchmark
 ```
 
-The public URLs above describe the currently deployed version. New branch behavior should only be claimed live after an exact-commit redeploy and verification.
+For MCP, use a client/request that supplies the required MCP `2026-07-28` headers and JSON-RPC metadata to `POST /mcp`.
+
+Do not claim the branch-only MCP/stateless-comparison behavior is live until `/health` reports the exact deployed branch commit and the runtime probes pass.
