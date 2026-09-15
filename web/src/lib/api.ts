@@ -85,26 +85,35 @@ export type TickersResponse = {
 };
 
 export async function fetchTickers(): Promise<Ticker[]> {
-  const res = await fetch(`${API_BASE}/market/tickers`);
-  const data = await safeJson<TickersResponse>(res, { ok: false, source: "", fetched_at: "", tickers: [] });
-  return data.tickers ?? [];
+  try {
+    const res = await fetch(`${API_BASE}/market/tickers`);
+    if (!res.ok) return [];
+    const data = await safeJson<TickersResponse>(res, { ok: false, source: "", fetched_at: "", tickers: [] });
+    return data.tickers ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchTicker(token: string): Promise<Ticker | null> {
-  const res = await fetch(`${API_BASE}/market/tickers/${encodeURIComponent(token)}`);
-  if (!res.ok) return null;
-  return safeJson<Ticker>(res, {
-    token,
-    symbol: `${token}USDT`,
-    price: 0,
-    price_change_pct: 0,
-    high: 0,
-    low: 0,
-    volume: 0,
-    quote_volume: 0,
-    source: "",
-    timestamp: "",
-  });
+  try {
+    const res = await fetch(`${API_BASE}/market/tickers/${encodeURIComponent(token)}`);
+    if (!res.ok) return null;
+    return safeJson<Ticker>(res, {
+      token,
+      symbol: `${token}USDT`,
+      price: 0,
+      price_change_pct: 0,
+      high: 0,
+      low: 0,
+      volume: 0,
+      quote_volume: 0,
+      source: "",
+      timestamp: "",
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function isSignalOk(signal: SignalResponse | SignalCard): signal is SignalOk {
