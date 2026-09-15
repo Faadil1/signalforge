@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from services.evidence_service import build_negative_path_evidence
+from services.evidence_service import build_negative_path_evidence, build_resilience_benchmark
 
 router = APIRouter(tags=["evidence"])
 
@@ -11,3 +11,9 @@ router = APIRouter(tags=["evidence"])
 async def negative_path_evidence():
     """Return the real failure record plus a clearly labelled controlled refusal proof."""
     return build_negative_path_evidence()
+
+
+@router.get("/evidence/resilience-benchmark")
+async def evidence_resilience_benchmark():
+    """Return deterministic policy-conformance results across controlled evidence failures."""
+    return build_resilience_benchmark()
