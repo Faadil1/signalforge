@@ -75,15 +75,15 @@ RATE_LIMIT_ENABLED=true
 
 ## Deployment workflow
 
-`.github/workflows/deploy-cloudflare.yml` supports manual execution and a controlled push trigger whose commit message is exactly:
+`.github/workflows/deploy-cloudflare.yml` supports manual execution and a controlled marker-file trigger. A push deploy occurs only when the commit changes:
 
 ```text
-deploy: cloudflare production
+.cloudflare-deploy-trigger
 ```
 
-Before upload it rebuilds the UI, resolves the Python Worker environment, smoke-tests the FastAPI import, and recompiles the exact Worker bundle.
+Normal code, documentation and state pushes therefore do not create production deployment runs. After credentials are present, updating the marker file creates one exact deployment commit that is rebuilt, smoke-tested, compiled and then uploaded.
 
-After upload it discovers or accepts the canonical Worker URL and refuses to declare success until runtime verification passes.
+After upload the workflow discovers or accepts the canonical Worker URL and refuses to declare success until runtime verification passes.
 
 ## Hard runtime verification
 
