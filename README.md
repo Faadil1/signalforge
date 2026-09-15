@@ -108,7 +108,7 @@ SignalForge exposes the same bounded product contract through two read-only surf
 
 Both surfaces preserve `execution_authorized: false`.
 
-**Deployment note:** the MCP/stateless-compare/resilience additions described in this branch must not be treated as public production capabilities until `/health` reports the exact source commit that contains them and the public probes pass.
+**Deployment note:** the MCP, stateless compare, resilience benchmark and Winning Intelligence v3 evidence-intelligence additions described on this branch must not be treated as public production capabilities until `/health` reports the exact source commit that contains them and the public probes pass.
 
 ### MCP transport
 
@@ -123,10 +123,12 @@ Supported methods:
 - `tools/list`
 - `tools/call`
 
-Current MCP tools:
+Current branch MCP tools:
 
 - `get_decision_packet`
 - `compare_decision_packet`
+- `stress_test_decision`
+- `verify_decision_receipt`
 - `validate_price_signals`
 - `inspect_negative_path`
 - `run_evidence_resilience_benchmark`
@@ -153,10 +155,15 @@ Returns:
 - supporting / contradicting / neutral evidence
 - provider + per-source provenance
 - source freshness / quality metadata
+- **evidence admission ledger** — what entered or was excluded, and why
+- **evidence lineage** — raw-input/provider dependencies and concentration
+- **evidence lease** — freshness-only `valid_until` bounded by the earliest contributing source deadline
+- **recovery requirements** — necessary conditions without a false guarantee of recovery
 - invalidation conditions
 - `agent_next_action`
 - authority boundary
 - snapshot identifier
+- **tamper-evident SHA-256 receipt**
 - `execution_authorized: false`
 
 `agent_next_action` is intentionally bounded:
@@ -166,6 +173,43 @@ Returns:
 - `RESEARCH_HANDOFF` when the evidence gate passes.
 
 None of these states authorizes execution.
+
+The evidence lease is a freshness lease only. It does **not** guarantee forecast or recommendation validity until `valid_until`.
+
+### Decision Fragility Stress Test
+
+```http
+GET /api/v1/decision/BTC/stress
+```
+
+The stress surface uses only currently observed signal values and removes evidence instead of inventing replacements. It reports:
+
+- single-signal dropouts;
+- minimum dropouts that force refusal;
+- minimum refusal sets;
+- provider dropouts and downstream dependency cascades;
+- minimum currently sufficient evidence sets;
+- evidence lease;
+- recovery requirements.
+
+Minimum sufficient evidence is a **current-policy diagnostic**, not a causal or future-sufficiency claim.
+
+MCP equivalent: `stress_test_decision`.
+
+### Decision Receipt Verification
+
+```http
+POST /api/v1/decision/verify-receipt
+Content-Type: application/json
+
+<SignalForge Decision Packet>
+```
+
+Verification recomputes the packet's canonical SHA-256 receipt without fetching market data. Changing a bound field invalidates the digest.
+
+This is an integrity receipt, **not** a digital signature or identity proof.
+
+MCP equivalent: `verify_decision_receipt`.
 
 ### Stateless Decision Compare — preferred durable delta path
 
@@ -177,6 +221,8 @@ Content-Type: application/json
 ```
 
 SignalForge fetches a fresh live Decision Packet and compares it with the caller-supplied baseline. This path is stateless and reproducible across serverless Worker isolates. The same workflow is available through MCP tool `compare_decision_packet`.
+
+Malformed or incompatible baselines fail with structured caller errors instead of accidental server errors.
 
 ### Process-local Signal Delta — convenience only
 
@@ -237,6 +283,8 @@ A deterministic policy-conformance suite checks whether SignalForge preserves th
 
 The benchmark uses a fixed fixture epoch for reproducibility and reports a `policy_conformance_rate`. It measures **policy behavior**, not trading profitability, predictive accuracy or historical replay performance.
 
+Winning Intelligence v3 white-space analysis and product boundaries: [`docs/WINNING-INTELLIGENCE-V3.md`](docs/WINNING-INTELLIGENCE-V3.md).
+
 Agent integration details: [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md).
 
 ---
@@ -258,13 +306,15 @@ The core deployment-proof gates remain:
 5. `/api/v1/validation/BTC?period_days=120&horizon_days=3`
 6. `/api/v1/evidence/negative-path`
 
-Winning Intelligence adds three productization probes:
+Winning Intelligence adds five productization probes:
 
 7. `/api/v1/capabilities`
 8. `/api/v1/evidence/resilience-benchmark`
-9. `POST /mcp` using `server/discover`, `tools/list`, or one of the five reviewed tools
+9. `/api/v1/decision/BTC/stress`
+10. `POST /api/v1/decision/verify-receipt` using a freshly returned Decision Packet
+11. `POST /mcp` using `server/discover`, `tools/list`, and at least one reviewed tool call
 
-This keeps judge-facing evidence separate from marketing copy and makes both positive-path usefulness and fail-closed behavior independently callable.
+This keeps judge-facing evidence separate from marketing copy and makes positive-path usefulness, fail-closed behavior, dependency fragility and packet integrity independently callable.
 
 Demo runbook: [`docs/JUDGE-DEMO.md`](docs/JUDGE-DEMO.md).
 
@@ -290,7 +340,9 @@ The public deployment must expose the exact reviewed Git commit.
   "mcp": "/mcp",
   "mcp_protocol_version": "2026-07-28",
   "negative_path": "/api/v1/evidence/negative-path",
-  "resilience_benchmark": "/api/v1/evidence/resilience-benchmark"
+  "resilience_benchmark": "/api/v1/evidence/resilience-benchmark",
+  "decision_stress": "/api/v1/decision/{token}/stress",
+  "receipt_verification": "/api/v1/decision/verify-receipt"
 }
 ```
 
@@ -340,7 +392,9 @@ curl "http://localhost:8000/api/v1/strategy/momentum/backtest?token=BTC&period=9
 | GET | `/api/v1/signals` | Batch signals |
 | GET | `/api/v1/overview` | Market overview cards |
 | GET | `/api/v1/signal/{token}/history` | Historical OHLCV through the active market-data provider path |
-| GET | `/api/v1/decision/{token}` | Versioned Agent Decision Packet |
+| GET | `/api/v1/decision/{token}` | Versioned evidence-bound Agent Decision Packet |
+| GET | `/api/v1/decision/{token}/stress` | Dropout/provider fragility + minimum currently sufficient evidence |
+| POST | `/api/v1/decision/verify-receipt` | Stateless Decision Receipt integrity verification |
 | POST | `/api/v1/decision/{token}/compare` | Stateless material-change comparison using caller-supplied baseline |
 | GET | `/api/v1/decision/{token}/delta` | Process-local material-change convenience endpoint |
 | GET | `/api/v1/validation/{token}` | Bounded historical calibration lab |
