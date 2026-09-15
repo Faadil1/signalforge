@@ -1,0 +1,51 @@
+project: signalforge
+workstream: evidence_failure_hardening
+status: HARDENING_IN_PROGRESS
+branch: evidence-failure-hardening
+base_branch: main
+base_commit: 1aa3ac7a47d5a90d5d9fd9b4250a97e21afd7bf8
+pull_request: 2
+canonical_principles:
+  - "Real failure > fake success"
+  - "Evidence before recommendation. Refusal before false confidence."
+  - "AVAILABLE != FRESH != CONSISTENT != ACTIONABLE"
+evidence_model:
+  statuses:
+    - OBSERVED_EXTERNAL
+    - OBSERVED_IN_BUILD
+    - INFERRED
+    - UNKNOWN
+real_failure_case:
+  id: aws-tokyo-binance-2025-04-15
+  source: Reuters
+  historical_replay: false
+implemented:
+  - per_source_provenance
+  - per_source_freshness_gate
+  - stale_unknown_inconsistent_evidence_removed_before_fusion
+  - fail_closed_no_hidden_mock_fallback
+  - insufficient_evidence_abstention
+  - execution_authorized_false
+  - public_negative_path_endpoint
+  - judge_negative_path_surface
+  - bounded_validation_3_of_5
+  - rubric_to_qa_assurance_matrix
+  - adversarial_qa
+  - deterministic_demo_runbook
+  - real_failure_evidence_record
+pending:
+  - final_branch_ci_green
+  - merge_pr_2_after_review
+  - deploy_exact_review_commit
+  - verify_same_origin_public_endpoints
+  - archive_runtime_verification_responses
+  - complete_official_source_verification_rights_package
+submission_ready: false
+stop_conditions:
+  - unreachable_public_runtime
+  - deployment_commit_mismatch
+  - mock_presented_as_live
+  - stale_or_unknown_evidence_presented_as_healthy
+  - negative_path_not_reproducible
+  - unsupported_performance_or_execution_claim
+  - incomplete_source_verification_or_rights_archive
