@@ -1,10 +1,37 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
+from services.evidence_audit import build_admission_ledger
 from services.evidence_intelligence import (
     build_decision_stress_test,
+    build_evidence_lease,
     build_lineage_analysis,
     build_recovery_requirements,
 )
+
+EVALUATED_AT = "2026-09-15T00:04:00+00:00"
+SOURCE_AT = "2026-09-15T00:00:00+00:00"
+
+
+def _fresh(max_age_seconds: int) -> dict:
+    return {
+        "status": "fresh",
+        "source_timestamp": SOURCE_AT,
+        "received_at": EVALUATED_AT,
+        "age_seconds": 240.0,
+        "max_age_seconds": max_age_seconds,
+    }
+
+
+def _unavailable(max_age_seconds: int) -> dict:
+    return {
+        "status": "unavailable",
+        "source_timestamp": None,
+        "received_at": EVALUATED_AT,
+        "age_seconds": None,
+        "max_age_seconds": max_age_seconds,
+    }
 
 
 def _partial_payload() -> dict:
@@ -25,10 +52,10 @@ def _partial_payload() -> dict:
                 "funding": "unavailable",
             },
             "freshness": {
-                "ticker": {"status": "fresh"},
-                "klines": {"status": "fresh"},
-                "open_interest": {"status": "unavailable"},
-                "funding": {"status": "unavailable"},
+                "ticker": _fresh(300),
+                "klines": _fresh(129600),
+                "open_interest": _unavailable(300),
+                "funding": _unavailable(900),
             },
         },
         "sub_signals": [
@@ -59,7 +86,10 @@ def _full_payload() -> dict:
         "funding": "binance_futures",
     }
     payload["source_meta"]["freshness"] = {
-        name: {"status": "fresh"} for name in ("ticker", "klines", "open_interest", "funding")
+        "ticker": _fresh(300),
+        "klines": _fresh(129600),
+        "open_interest": _fresh(300),
+        "funding": _fresh(900),
     }
     payload["sub_signals"] = [
         {"name": "technical", "value": 72.0, "confidence": 0.7, "available": True, "reason": "test"},
@@ -79,6 +109,50 @@ def test_lineage_surfaces_provider_concentration_without_independence_claim() ->
     assert lineage["concentration_level"] == "high"
     assert lineage["independence_claimed"] is False
     assert lineage["policy_effect"] == "diagnostic_only_not_an_actionability_gate"
+
+
+def test_admission_ledger_explains_admitted_and_excluded_sources() -> None:
+    ledger = build_admission_ledger(_partial_payload())
+    by_source = {entry["raw_source"]: entry for entry in ledger["entries"]}
+
+    assert ledger["admitted_raw_sources"] == ["ticker", "klines"]
+    assert set(ledger["excluded_raw_sources"]) == {"open_interest", "funding"}
+    assert by_source["ticker"]["reason_code"] == "ADMITTED"
+    assert by_source["funding"]["reason_code"] == "QUALITY_UNAVAILABLE"
+    assert by_source["open_interest"]["decision_admitted"] is False
+    assert ledger["execution_authorized"] is False
+
+
+def test_evidence_lease_uses_earliest_contributing_freshness_deadline() -> None:
+    lease = build_evidence_lease(_partial_payload())
+
+    assert lease["status"] == "valid"
+    assert lease["limiting_raw_source"] == "ticker"
+    assert lease["valid_until"] == "2026-09-15T00:05:00+00:00"
+    assert lease["remaining_seconds"] == 60.0
+    assert lease["freshness_only"] is True
+    assert lease["forecast_validity_guaranteed"] is False
+    assert lease["execution_authorized"] is False
+
+
+def test_evidence_lease_fails_closed_when_contributing_deadline_is_unknown() -> None:
+    payload = _partial_payload()
+    payload["source_meta"]["freshness"]["ticker"]["source_timestamp"] = None
+    lease = build_evidence_lease(payload)
+
+    assert lease["status"] == "unknown"
+    assert lease["valid_until"] is None
+    assert "ticker" in lease["uncertain_raw_sources"]
+
+
+def test_evidence_lease_reports_expired_if_admitted_source_is_stale() -> None:
+    payload = deepcopy(_partial_payload())
+    payload["source_meta"]["freshness"]["ticker"]["status"] = "stale"
+    lease = build_evidence_lease(payload)
+
+    assert lease["status"] == "expired"
+    assert lease["remaining_seconds"] == 0.0
+    assert lease["limiting_raw_source"] == "ticker"
 
 
 def test_recovery_reports_necessary_not_sufficient_conditions() -> None:
@@ -102,6 +176,7 @@ def test_provider_dropout_stress_exposes_hidden_dependency_chain() -> None:
     assert {"technical", "trend", "volume"}.issubset(set(coinbase["impacted_signals"]))
     assert coinbase["causes_refusal"] is True
     assert coinbase["result"]["execution_authorized"] is False
+    assert result["evidence_lease"]["status"] == "valid"
 
 
 def test_already_refusing_state_is_not_mislabelled_as_resilient() -> None:
