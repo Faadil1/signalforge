@@ -7,6 +7,7 @@ from copy import deepcopy
 from services.evidence_intelligence import (
     build_decision_receipt,
     build_decision_stress_test,
+    build_evidence_lease,
     build_lineage_analysis,
     build_recovery_requirements,
 )
@@ -183,6 +184,7 @@ async def get_decision_packet(token: str) -> dict:
             "fallback_provider": source_meta.get("fallback_provider"),
         },
         "evidence_lineage": build_lineage_analysis(payload),
+        "evidence_lease": build_evidence_lease(payload),
         "recovery_requirements": build_recovery_requirements(payload),
         "invalidation": _invalidation(payload),
         "timestamp": payload["timestamp"],
