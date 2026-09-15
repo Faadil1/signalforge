@@ -2,7 +2,7 @@ name: Cloudflare Runtime Verify
 
 on:
   push:
-    branches: [cloudflare-runtime]
+    branches: [cloudflare-runtime, winning-intelligence-v2]
   workflow_dispatch:
 
 concurrency:
@@ -56,11 +56,16 @@ jobs:
           print("SignalForge FastAPI import: OK")
           PY
 
-      - name: Verify Binance-blocked multi-provider fallback
+      - name: Verify Winning Intelligence contracts
         env:
           PYTHONPATH: api
         run: |
-          uv run --with pytest --with 'httpx==0.27.0' pytest -q tests/test_cloudflare_market_fallback.py
+          uv run --with pytest --with 'httpx==0.27.0' pytest -q \
+            tests/test_decision.py \
+            tests/test_evidence.py \
+            tests/test_capabilities.py \
+            tests/test_mcp.py \
+            tests/test_cloudflare_market_fallback.py
 
       - name: Compile Cloudflare Worker without deploying
         run: uv run pywrangler deploy --dry-run
