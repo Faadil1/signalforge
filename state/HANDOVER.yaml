@@ -1,11 +1,10 @@
 project: signalforge
-handover_type: evidence_failure_hardening
+handover_type: deployment_preparation
 branch: evidence-failure-hardening
 pull_request: 2
 objective: >-
-  Make the X-Agent submission robust against judge scrutiny by adding a real negative event,
-  freshness/data-quality gating, an explicit refusal path, bounded claims, deterministic demo,
-  rubric mapping, adversarial Q&A, and final deployment/archive gates.
+  Carry the judge-hardened SignalForge build into a real public deployment without weakening
+  evidence integrity, exact-commit binding, same-origin proof, or refusal behavior.
 completed:
   - Canonical real failure record: AWS Tokyo / Binance / 2025-04-15.
   - Reuters is used only as an external source for historical facts; no historical replay is claimed.
@@ -17,18 +16,31 @@ completed:
   - Added SUBMISSION-ASSURANCE, JUDGE-DEMO and ADVERSARIAL-QA docs.
   - Updated README, JUDGE-READY and XAGENT-SUBMISSION-CHECKLIST for consistent claims.
   - Corrected stale README Next.js badge from 14.2 to 16.3.5.
-verified_before_state_sync:
-  ci_run: 23
-  sha: 2071d6cdec282e8d1f97cc8d6249870513345a59
+  - Docker runtime now honors the platform-provided PORT variable.
+  - Added docs/RUNTIME-DEPLOYMENT.md with the two-service runtime contract.
+  - Chosen deployment architecture: Railway-only, avoiding Vercel build limits.
+  - Backend service plan: signalforge-api from repository root using Dockerfile.
+  - Frontend service plan: signalforge-web from /web using Next.js.
+  - Frontend remains the canonical judge origin and proxies API/health/verification to backend.
+verified_deployment_preparation:
+  ci_run: 28
+  sha: 28b4246b381f8007b32e05d523b74426517c4737
   backend: green
   frontend: green
+external_blocker:
+  railway_plugin_connected: false
+  action_required: connect Railway plugin in ChatGPT before service creation can be executed here
 next_steps:
-  - Verify CI on the final state-only synchronization commit.
-  - Update PR #2 body with final verified SHA and CI run.
-  - Move PR #2 from draft to ready after exact-head CI is green.
-  - Do not merge automatically; wait for review/authorization.
-  - After merge, deploy the exact review commit and archive same-origin runtime proof.
-post_merge_runtime_gate:
+  - Verify exact-head CI after canonical state synchronization.
+  - Once Railway is connected, create one project with two services from Faadil1/signalforge.
+  - Deploy backend first and generate a stable public HTTPS domain.
+  - Configure backend variables including exact GIT_COMMIT, ALLOW_MOCK_FALLBACK=false and ENABLE_ALERTS=false.
+  - Configure frontend root /web with API_URL pointing to backend public HTTPS origin.
+  - Deploy frontend from the exact same reviewed commit.
+  - Verify all six calls through the frontend canonical origin.
+  - Archive raw responses and deployment identifiers.
+  - Do not merge PR #2 automatically; wait for review/authorization.
+runtime_gate:
   required_calls:
     - /health
     - /.well-known/xagent-verification.json
@@ -40,6 +52,7 @@ post_merge_runtime_gate:
     allow_mock_fallback: false
     alerts_enabled: false
     exact_commit_binding: true
+    frontend_backend_same_commit: true
     same_origin_judge_surface: true
 final_state_target: SUBMISSION_READY
-current_state: CODE_READY_AWAITING_FINAL_EXACT_HEAD_CI
+current_state: DEPLOYMENT_PREPARED_AWAITING_RAILWAY_CONNECTION
