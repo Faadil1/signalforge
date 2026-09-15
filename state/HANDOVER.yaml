@@ -14,6 +14,7 @@ upstream_state:
   upstream_main_merge_sha: eecba778ff49dbab58d2b383428972b9f4c5c5e5
   merged_at_utc: "2026-09-15T16:38:16Z"
   winning_intelligence_v2_upstream: not_merged
+  branch_synced_with_upstream_main_via: 154c987fbcbce7bdf5a73995af4ffcb8bec93110
 
 current_production:
   origin: https://signalforge.faadil-casecraft.workers.dev
@@ -46,15 +47,16 @@ production_runtime_truth:
     execution_authorized: false
 
 winning_intelligence_v2_checkpoint:
-  code_and_docs_sha: d4398c624900964f96ab63fa2652b1994115eb9f
+  application_checkpoint_sha: 42def27390a468b4820830faf58ca2eed210662e
+  evidence_bound_readme_head: a6d6e21dfd66c59ef51e303851b9da3f910ba8fe
   verified: true
   deployed: false
   ci:
-    standard_ci_run: 46
-    standard_ci_run_id: 35001362158
+    standard_ci_run: 55
+    standard_ci_run_id: 35002737909
     standard_ci_result: success
-    cloudflare_verify_run: 90
-    cloudflare_verify_run_id: 35001362128
+    cloudflare_verify_run: 99
+    cloudflare_verify_run_id: 35002737940
     cloudflare_verify_result: success
   scorecard_targeting:
     real_agent_user_value_30: narrow_pre_action_evidence_gate
@@ -70,6 +72,9 @@ implemented_hidden_spots:
       rest: POST_/api/v1/decision/{token}/compare
       mcp: compare_decision_packet
       persistence: caller_supplied_baseline
+      legacy_unversioned_baseline_supported: true
+      incompatible_contract_version_rejected: true
+      malformed_baseline_returns_structured_error: true
     retained_convenience_endpoint: GET_/api/v1/decision/{token}/delta
     retained_limit: process_memory_non_durable
   - id: measurable_refusal_quality
@@ -78,6 +83,8 @@ implemented_hidden_spots:
       rest: GET_/api/v1/evidence/resilience-benchmark
       mcp: run_evidence_resilience_benchmark
       scenarios: 4
+      fixture_epoch: "2026-09-15T00:00:00+00:00"
+      repeated_output_equality_tested: true
       scope: deterministic_policy_conformance_not_market_accuracy
       historical_replay: false
   - id: explicit_agent_contract
@@ -106,6 +113,7 @@ implemented_hidden_spots:
     read_only: true
     destructive: false
     origin_validation: true
+    official_spec_alignment_checked: true
   - id: capabilities_manifest
     endpoint: GET_/api/v1/capabilities
   - id: operability
@@ -114,6 +122,10 @@ implemented_hidden_spots:
     document: docs/WINNING-INTELLIGENCE-V2.md
   - id: agent_integration
     document: docs/AGENT-INTEGRATION.md
+  - id: claim_discipline
+    readme: >-
+      MCP/stateless-compare/resilience are documented as branch capabilities and are not claimed publicly live
+      until an exact source commit containing them is deployed and verified.
 
 competitive_intelligence:
   closest_project: BHRIGU_OlaXBT_Strategy_Evidence_Agent_PR_55
@@ -175,10 +187,8 @@ next_TRACE_UI_UX_direction:
     - generic_bento
 
 next_steps:
-  - verify_current_branch_head_after_state_handover_commits
-  - ensure_final_docs_state_only_commits_do_not_change_application_checkpoint_semantics
-  - compare winning-intelligence-v2 against opeblow/signalforge main
-  - prepare upstream PR for Opeyemi without auto_merge
+  - compare_final_branch_against_opeblow_main
+  - prepare_upstream_PR_for_Opeyemi_without_auto_merge
   - after_Opeyemi_merge_capture_exact_upstream_main_SHA
   - deploy_exact_merged_SHA_to_Cloudflare
   - rerun_core_six_public_proof_calls
