@@ -26,6 +26,11 @@ type SignalRow = {
   confidence?: number;
   recommendation?: string;
   sub_signals?: SubSignal[];
+  provider?: string;
+  sources?: Record<string, string>;
+  coverage?: number;
+  actionability?: string;
+  executionAuthorized?: boolean;
   error?: string;
 };
 
@@ -38,6 +43,11 @@ function cardToRow(card: SignalCard): SignalRow {
       confidence: card.confidence,
       recommendation: card.recommendation,
       sub_signals: card.sub_signals,
+      provider: card.source_meta?.provider,
+      sources: card.source_meta?.sources,
+      coverage: card.coverage,
+      actionability: card.actionability,
+      executionAuthorized: card.execution_authorized,
     };
   }
   return { token: card.token, error: card.error.message };
@@ -49,6 +59,14 @@ function secondsAgo(date: Date | null): string | null {
   if (s < 5) return "just now";
   if (s < 60) return `${s}s ago`;
   return `${Math.round(s / 60)}m ago`;
+}
+
+function providerLabel(provider?: string): string {
+  if (provider === "multi_provider_public") return "Multi-provider public";
+  if (provider === "binance_public") return "Binance public";
+  if (provider === "coinbase_exchange") return "Coinbase Exchange";
+  if (provider === "mock") return "Mock";
+  return "Explicit provenance";
 }
 
 export default function DashboardPage() {
@@ -156,12 +174,13 @@ export default function DashboardPage() {
     return acc;
   }, {});
   const topRec = Object.entries(recCounts).sort((a, b) => b[1] - a[1])[0];
+  const observedProvider = liveRows.find((row) => row.provider)?.provider;
 
   const KPI_DATA = [
-    { label: "Signals Live", value: liveRows.length.toLocaleString(), change: `${signals.length - liveRows.length} failed` },
-    { label: "Avg Confidence", value: liveRows.length ? `${avgConfidence.toFixed(1)}%` : "—", change: "computed" },
+    { label: "Markets Loaded", value: liveRows.length.toLocaleString(), change: `${signals.length - liveRows.length} unavailable` },
+    { label: "Avg Confidence", value: liveRows.length ? `${avgConfidence.toFixed(1)}%` : "—", change: "evidence-weighted" },
     { label: "Strongest", value: best ? `${best.token} ${(best.score || 0).toFixed(1)}` : "—", change: best?.recommendation?.replace("_", " ") || "—" },
-    { label: "Consensus", value: topRec ? topRec[0].replace("_", " ") : "—", change: `${topRec ? topRec[1] : 0} tokens` },
+    { label: "Provider", value: providerLabel(observedProvider), change: "per-source provenance below" },
   ];
 
   const filtered = signals.filter((s) => s.token?.toLowerCase().includes(search.toLowerCase()));
@@ -170,7 +189,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Market Overview"
-        subtitle="Multi-signal composite scores from live Binance market data"
+        subtitle="Evidence-gated composite scores with explicit per-source provenance"
         badge={
           <div className="flex items-center gap-2">
             <StatusBadge status={loading ? "stale" : error ? "error" : "live"} label={loading ? "Loading" : error ? "Error" : "Auto-refreshing"} />
@@ -186,7 +205,6 @@ export default function DashboardPage() {
         }
       />
 
-      {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {KPI_DATA.map((kpi) => (
           <Card key={kpi.label} className="p-4">
@@ -229,7 +247,7 @@ export default function DashboardPage() {
                   <div className="col-span-2">Score</div>
                   <div className="col-span-3">Recommendation</div>
                   <div className="col-span-2">Confidence</div>
-                  <div className="col-span-3">Sub-Signals</div>
+                  <div className="col-span-3">Evidence</div>
                 </div>
                 {filtered.map((s) =>
                   s.error ? (
@@ -265,18 +283,20 @@ export default function DashboardPage() {
                         {s.confidence != null ? `${(s.confidence * 100).toFixed(0)}%` : "—"}
                       </div>
                       <div className="col-span-3 space-y-1">
-                        {s.sub_signals?.slice(0, 3).map((ss) => (
-                          <div key={ss.name} className="flex items-center gap-2 text-[11px]">
-                            <span className="w-16 truncate text-text-subtle">{ss.name.replace("_", " ")}</span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-secondary">
-                              <div
-                                className={clsx("h-full rounded-full", ss.value >= 60 ? "bg-positive" : ss.value >= 40 ? "bg-text-secondary" : "bg-negative")}
-                                style={{ width: `${ss.value}%` }}
-                              />
-                            </div>
-                            <span className="w-7 text-right font-mono text-text-subtle">{ss.value}</span>
-                          </div>
-                        ))}
+                        <div className="flex items-center justify-between text-[11px] text-text-subtle">
+                          <span>{Math.round((s.coverage ?? 0) * 100)}% coverage</span>
+                          <span>{providerLabel(s.provider)}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(s.sources || {}).map(([name, source]) => (
+                            <span key={name} className={clsx(
+                              "rounded px-1.5 py-0.5 font-mono text-[9px]",
+                              source === "unavailable" ? "bg-surface-secondary text-text-subtle" : "bg-brand/10 text-brand"
+                            )}>
+                              {name.replace("open_interest", "oi")}: {source}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )
@@ -306,6 +326,11 @@ export default function DashboardPage() {
                       className="mt-3 justify-center text-sm text-text-secondary"
                     />
                   )}
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-[10px] uppercase tracking-wider text-text-subtle">
+                    <span>{Math.round((selected.coverage ?? 0) * 100)}% evidence coverage</span>
+                    <span>·</span>
+                    <span>execution unauthorized</span>
+                  </div>
                 </div>
               </CardBody>
             </Card>
