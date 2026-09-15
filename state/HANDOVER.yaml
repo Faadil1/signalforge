@@ -1,46 +1,54 @@
 project: signalforge
-handover_type: deployment_preparation
-branch: evidence-failure-hardening
-pull_request: 2
+handover_type: cloudflare_runtime
+branch: cloudflare-runtime
+stacked_on: evidence-failure-hardening
+hardening_pull_request: 2
 objective: >-
-  Carry the judge-hardened SignalForge build into a real public deployment without weakening
-  evidence integrity, exact-commit binding, same-origin proof, or refusal behavior.
+  Deploy the judge-hardened SignalForge build as one Cloudflare Worker serving both
+  static Next.js judge assets and FastAPI proof endpoints from one exact Git commit
+  and one public origin, without weakening evidence integrity or refusal behavior.
 completed:
-  - Canonical real failure record: AWS Tokyo / Binance / 2025-04-15.
-  - Reuters is used only as an external source for historical facts; no historical replay is claimed.
-  - Added data-quality policy with fresh/stale/unavailable/unknown/inconsistent/mock states.
-  - Binance client records source timestamps and removes non-fresh live evidence before fusion.
-  - Added /api/v1/evidence/negative-path and exposed it on /judge and playground catalog.
-  - Negative path demonstrates 3/5 usable evidence -> insufficient_evidence -> execution_authorized false.
-  - Added tests for freshness classification, stale-source sanitization and public refusal behavior.
-  - Added SUBMISSION-ASSURANCE, JUDGE-DEMO and ADVERSARIAL-QA docs.
-  - Updated README, JUDGE-READY and XAGENT-SUBMISSION-CHECKLIST for consistent claims.
-  - Corrected stale README Next.js badge from 14.2 to 16.3.5.
-  - Docker runtime now honors the platform-provided PORT variable.
-  - Added docs/RUNTIME-DEPLOYMENT.md with the two-service runtime contract.
-  - Chosen deployment architecture: Railway-only, avoiding Vercel build limits.
-  - Backend service plan: signalforge-api from repository root using Dockerfile.
-  - Frontend service plan: signalforge-web from /web using Next.js.
-  - Frontend remains the canonical judge origin and proxies API/health/verification to backend.
-verified_deployment_preparation:
-  ci_run: 28
-  sha: 28b4246b381f8007b32e05d523b74426517c4737
-  backend: green
-  frontend: green
-external_blocker:
-  railway_plugin_connected: false
-  action_required: connect Railway plugin in ChatGPT before service creation can be executed here
-next_steps:
-  - Verify exact-head CI after canonical state synchronization.
-  - Once Railway is connected, create one project with two services from Faadil1/signalforge.
-  - Deploy backend first and generate a stable public HTTPS domain.
-  - Configure backend variables including exact GIT_COMMIT, ALLOW_MOCK_FALLBACK=false and ENABLE_ALERTS=false.
-  - Configure frontend root /web with API_URL pointing to backend public HTTPS origin.
-  - Deploy frontend from the exact same reviewed commit.
-  - Verify all six calls through the frontend canonical origin.
-  - Archive raw responses and deployment identifiers.
-  - Do not merge PR #2 automatically; wait for review/authorization.
+  - Preserved all evidence/failure hardening from PR #2.
+  - Replaced the prior Railway deployment plan with a Cloudflare-only runtime plan.
+  - Created a dedicated cloudflare-runtime branch so PR #2 can continue review independently.
+  - Added conditional Next.js static export and verified /judge is exportable.
+  - Made /healthz explicitly static for Cloudflare asset export.
+  - Added api/worker.py ASGI adapter for the existing FastAPI app.
+  - Added httpx2 aliasing only in the Cloudflare runtime adapter; core Binance client code is unchanged.
+  - Moved Cloudflare Python dependency metadata to root pyproject.toml to preserve api/requirements.txt for normal Docker/CI use.
+  - Aligned Cloudflare Pydantic to 2.12.5 / pydantic-core 2.41.5 supported by Pyodide 314.
+  - Added root wrangler.jsonc with Workers Static Assets and route-scoped run_worker_first.
+  - Verified Cloudflare bundle compilation with pywrangler deploy --dry-run.
+  - Added FastAPI import smoke test under the Cloudflare dependency set.
+  - Removed export-time Next rewrite ambiguity.
+  - Added .github/workflows/cloudflare-verify.yml using current Node 24-compatible GitHub actions.
+  - Added .github/workflows/deploy-cloudflare.yml with exact SHA injection and automated runtime proof.
+  - Deployment workflow archives judge HTML, all six required API/proof responses, deploy log, and runtime manifest for 90 days.
+  - Rewrote docs/RUNTIME-DEPLOYMENT.md to Cloudflare single-worker canon.
+verified_cloudflare_checkpoint:
+  ci_run: 8
+  sha: 66d3e823cb22cc5413036bcaf35382e361d0e1c5
+  static_frontend: green
+  judge_export: green
+  pyodide_dependency_resolution: green
+  worker_bundle_dry_run: green
+current_verification:
+  workflow: Cloudflare Runtime Verify
+  trigger: every push to cloudflare-runtime
+  note: later documentation/workflow/state commits automatically receive a new exact-head verification run
+external_action_required:
+  reason: Cloudflare production CI requires account-scoped credentials that cannot be read or created by this GitHub connector
+  github_repository_secrets_required:
+    - CLOUDFLARE_ACCOUNT_ID
+    - CLOUDFLARE_API_TOKEN
+  cloudflare_token_permission: Edit Cloudflare Workers on the target account with minimum viable scope
+controlled_deploy_trigger:
+  workflow: .github/workflows/deploy-cloudflare.yml
+  manual_dispatch_supported: true
+  automated_trigger_commit_message: "deploy: cloudflare production"
+  behavior: rebuild -> smoke test -> dry run -> deploy exact GITHUB_SHA -> verify public runtime -> archive evidence
 runtime_gate:
+  canonical_topology: single_origin
   required_calls:
     - /health
     - /.well-known/xagent-verification.json
@@ -51,8 +59,23 @@ runtime_gate:
   required_runtime_posture:
     allow_mock_fallback: false
     alerts_enabled: false
+    execution_authorized: false
     exact_commit_binding: true
-    frontend_backend_same_commit: true
     same_origin_judge_surface: true
+  additional_surface:
+    - /judge/
+plan_risk:
+  workers_free_cpu_limit_ms: 10
+  mitigation: >-
+    Let runtime verification decide. If required dynamic calls repeatedly hit Cloudflare 1102,
+    do not weaken proof; move to sufficient Workers CPU allowance or another backend runtime and rerun all gates.
+next_steps:
+  - Ensure the two Cloudflare values are stored as GitHub repository secrets.
+  - Create the exact controlled deploy trigger commit.
+  - Inspect deployment and runtime verification result.
+  - Download/archive the GitHub Actions runtime artifact.
+  - Open/update stacked Cloudflare runtime PR after live proof.
+  - Do not merge PR #2 or the runtime branch automatically without authorization.
+  - After final review/merge, redeploy the exact final reviewed commit and rerun public proof.
 final_state_target: SUBMISSION_READY
-current_state: DEPLOYMENT_PREPARED_AWAITING_RAILWAY_CONNECTION
+current_state: CLOUDFLARE_PREDEPLOY_READY_AWAITING_CREDENTIAL_BINDING
