@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 
 const API_URL = process.env.API_URL || "http://localhost:8000";
+const CLOUDFLARE_STATIC_EXPORT = process.env.CLOUDFLARE_STATIC_EXPORT === "1";
 
 function isValidApiUrl(url) {
   try {
@@ -14,8 +15,10 @@ function isValidApiUrl(url) {
 const rewriteTarget = isValidApiUrl(API_URL) ? API_URL : "http://localhost:8000";
 
 const nextConfig = {
-  output: "standalone",
+  output: CLOUDFLARE_STATIC_EXPORT ? "export" : "standalone",
+  trailingSlash: CLOUDFLARE_STATIC_EXPORT,
   async rewrites() {
+    if (CLOUDFLARE_STATIC_EXPORT) return [];
     return [
       {
         source: "/api/:path*",
