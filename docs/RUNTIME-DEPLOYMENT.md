@@ -1,80 +1,93 @@
-# SignalForge — Runtime Deployment Runbook
+# SignalForge — Cloudflare Runtime Deployment Runbook
 
 This runbook defines the judged deployment posture. It is an execution checklist, not evidence that deployment has already occurred.
 
-## Architecture
+## Canonical architecture
 
-Deploy two services from the same GitHub repository and the same reviewed commit:
+SignalForge deploys as **one Cloudflare Worker** from one exact Git commit:
 
-1. **signalforge-api** — FastAPI backend, repository root, Dockerfile runtime.
-2. **signalforge-web** — Next.js frontend, root directory `/web`.
+- FastAPI runs as a Cloudflare Python Worker through the ASGI adapter in `api/worker.py`.
+- Next.js is built with `CLOUDFLARE_STATIC_EXPORT=1` into `web/out`.
+- Workers Static Assets serves the UI directly.
+- `assets.run_worker_first` sends only the API/proof paths through FastAPI.
 
-The frontend is the canonical public judge origin. Its existing Next.js rewrites proxy these routes to the backend:
+This produces one public origin for the judge UI and the API proof surface. There is no frontend/backend commit drift and no cross-service proxy dependency.
 
-- `/api/:path*`
+Worker-first paths:
+
+- `/api/*`
 - `/health`
-- `/.well-known/xagent-verification.json`
+- `/.well-known/*`
+- `/docs*`
+- `/openapi.json`
 
-This preserves a same-origin judge surface while keeping the API runtime isolated.
+All normal UI routes, including `/judge/`, are served as static assets from the same Worker origin.
 
-## Backend service — signalforge-api
+## Runtime compatibility
 
-Source:
+Cloudflare Python Workers execute through Pyodide. The Cloudflare-specific dependency set is declared in the root `pyproject.toml` and intentionally does not replace `api/requirements.txt`, which remains the normal Docker/local dependency set.
 
-- Repository: `Faadil1/signalforge`
-- Branch/ref: the final reviewed branch or merged `main`
-- Root directory: `/`
-- Runtime: root `Dockerfile`
-- Public networking: enabled
-- Healthcheck path: `/health`
+Cloudflare runtime adaptations:
 
-Required variables:
+- `httpx2` is aliased to the existing `httpx` interface before importing SignalForge.
+- Pydantic is pinned to the Pyodide-compatible `2.12.5` runtime line.
+- reviewed Cloudflare bindings are mirrored into `os.environ` before the existing application configuration is loaded.
+- the business logic remains in the existing FastAPI application; `api/worker.py` is a runtime adapter only.
 
-```env
-GIT_COMMIT=<exact-40-character-reviewed-commit>
+## Build assurance
+
+`.github/workflows/cloudflare-verify.yml` must pass on the exact candidate commit before deployment. It verifies:
+
+1. clean Next.js install and static export;
+2. exported `/` and `/judge/` assets exist;
+3. Cloudflare Python dependencies resolve;
+4. the SignalForge FastAPI app imports under the Cloudflare dependency set;
+5. `pywrangler deploy --dry-run` successfully compiles the Worker bundle.
+
+A failed compatibility gate is evidence to fix, not something to bypass.
+
+## Production authentication
+
+Production deployment uses GitHub Actions and requires two GitHub repository secrets:
+
+```text
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+```
+
+The token should be scoped to the target Cloudflare account with the minimum permissions required to edit Workers. Never commit either credential.
+
+## Deployment variables
+
+The deploy workflow injects these reviewed non-secret variables into the exact deployed version:
+
+```text
+GIT_COMMIT=<exact GitHub Actions SHA>
 PROJECT_SLUG=signalforge
 ALLOW_MOCK_FALLBACK=false
 ENABLE_ALERTS=false
 ENABLE_BACKTESTS=true
+CORS_ORIGINS=*
 RATE_LIMIT_ENABLED=true
-CORS_ORIGINS=<canonical-frontend-origin>
 ```
 
-The Docker image must listen on the platform-provided `PORT`. Do not replace `GIT_COMMIT` with a branch name or shortened SHA.
+`GIT_COMMIT` is injected from `GITHUB_SHA`; it must never be replaced with a branch name or shortened commit.
 
-## Frontend service — signalforge-web
+## Deployment workflow
 
-Source:
+`.github/workflows/deploy-cloudflare.yml` supports manual execution and a controlled push trigger whose commit message is exactly:
 
-- Repository: `Faadil1/signalforge`
-- Same reviewed commit as the backend
-- Root directory: `/web`
-- Framework: Next.js
-- Public networking: enabled
-
-Required variables:
-
-```env
-API_URL=https://<signalforge-api-public-domain>
-NEXT_PUBLIC_ENABLE_ALERTS=false
-NEXT_PUBLIC_ENABLE_BACKTESTS=true
+```text
+deploy: cloudflare production
 ```
 
-`API_URL` must be present before the production frontend build because the rewrite destination is compiled from `next.config.js`.
+Before upload it rebuilds the UI, resolves the Python Worker environment, smoke-tests the FastAPI import, and recompiles the exact Worker bundle.
 
-## Deployment order
-
-1. Deploy backend first.
-2. Generate/record its public HTTPS domain.
-3. Verify direct backend `/health` and `/.well-known/xagent-verification.json`.
-4. Configure frontend `API_URL` with the backend HTTPS origin.
-5. Set backend `CORS_ORIGINS` to the final frontend HTTPS origin once known.
-6. Deploy frontend from the exact same reviewed commit.
-7. Treat the frontend domain as the canonical judge URL.
+After upload it discovers or accepts the canonical Worker URL and refuses to declare success until runtime verification passes.
 
 ## Hard runtime verification
 
-Do not call the submission runtime-ready until all calls below succeed from the **frontend canonical origin**:
+The workflow archives raw proof for all required same-origin calls:
 
 ```bash
 curl https://<judge-origin>/health
@@ -85,33 +98,45 @@ curl "https://<judge-origin>/api/v1/validation/BTC?period_days=120&horizon_days=
 curl https://<judge-origin>/api/v1/evidence/negative-path
 ```
 
-Required assertions:
+It also fetches `/judge/` from the same origin.
 
-- `/health.status == "ok"`
-- `/health.commit` is the exact deployed 40-character commit
-- `mock_fallback_enabled == false`
-- verification `slug == "signalforge"`
-- verification commit equals health commit
-- Decision Packet never grants execution authority
-- provenance is live/live_partial, never hidden mock
-- negative path passes and returns `insufficient_evidence`
-- Validation Lab still declares `price_derived_3_of_5` and `full_composite_validated=false`
+Required assertions include:
 
-## Evidence capture
+- `/health.status == "ok"`;
+- `/health.commit == GITHUB_SHA`;
+- verification `slug == "signalforge"`;
+- verification commit equals `GITHUB_SHA`;
+- Decision Packet has `execution_authorized == false`;
+- Decision Packet data mode is not `mock`;
+- Delta responds successfully;
+- Validation Lab still declares `full_composite_validated == false`;
+- negative-path reproduction passes;
+- negative-path result has `execution_authorized == false`.
 
-Save the raw response bodies, UTC verification timestamp, canonical origin, backend origin, exact commit, deployment identifiers, and CI run into the official verification archive.
+The responses, deployment log and a runtime manifest are retained as a GitHub Actions artifact for 90 days.
 
-Never write a successful runtime receipt before the public calls are actually observed.
+## Cloudflare plan gate
+
+Workers Free currently permits 10 ms of CPU time per dynamic request. Static asset requests do not invoke the Python Worker unless they match `run_worker_first`.
+
+If a judged dynamic endpoint repeatedly returns Cloudflare resource-limit error 1102, do not weaken or remove verification. Either move the Worker to a plan with sufficient CPU allowance or choose another backend runtime, then re-run the complete runtime proof.
+
+## Evidence discipline
+
+A successful `pywrangler --dry-run` proves bundle compatibility, not live deployment. A Cloudflare upload proves deployment, not application correctness. Only the archived public verification calls close the runtime gate.
+
+Never write a successful runtime receipt before those public calls are actually observed.
 
 ## Stop conditions
 
 Stop and fix rather than submit if any of these occur:
 
-- frontend and backend are built from different commits
-- health reports a missing/short/different commit
-- public rewrites fail or bypass the backend binding
-- API returns mock evidence in judged mode
-- stale/unknown evidence is represented as healthy
-- negative path cannot be reproduced
-- runtime requires private authentication for judges
-- deployment URL is ephemeral or scheduled to expire during review
+- public runtime is unreachable;
+- health reports a missing, shortened or different commit;
+- `/judge/` and API proof paths do not share one public origin;
+- API returns mock evidence in judged mode;
+- stale/unknown evidence is represented as healthy;
+- negative path cannot be reproduced;
+- runtime requires private authentication for judges;
+- Cloudflare CPU/resource limits make required calls unreliable;
+- deployment URL is ephemeral or scheduled to expire during the review window.
