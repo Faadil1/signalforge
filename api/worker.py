@@ -29,6 +29,14 @@ for name in (
 # contract remains unchanged outside this runtime adapter.
 httpx2.alias_httpx()
 
+# Binance Futures currently returns WAF HTTP 403 from this Cloudflare runtime.
+# Install an evidence-preserving fallback that uses Binance's official public
+# Spot market-data-only host for ticker/klines only. Futures-only evidence such
+# as funding and open interest remains unavailable rather than synthesized.
+from cloudflare_binance_adapter import install_cloudflare_binance_fallback  # noqa: E402
+
+install_cloudflare_binance_fallback()
+
 from main import app  # noqa: E402
 
 Default = asgi.entrypoint(app)
