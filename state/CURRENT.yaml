@@ -17,9 +17,7 @@ upstream:
   merge_status: merged
   merge_commit: eecba778ff49dbab58d2b383428972b9f4c5c5e5
   merged_at_utc: "2026-09-15T16:38:16Z"
-  note: >-
-    The consolidated evidence hardening, Cloudflare runtime, multi-provider fallback and TRACE redesign
-    are now in upstream main. Winning Intelligence v2 is a later fork branch and is not yet upstream.
+  winning_intelligence_v2_upstream: not_merged
 
 production_runtime:
   platform: Cloudflare Workers
@@ -34,8 +32,8 @@ production_runtime:
   execution_authorized: false
   winning_intelligence_v2_live: false
   note: >-
-    Production still serves the previously verified TRACE source SHA. MCP 2026-07-28, stateless compare,
-    resilience benchmark and new contract metadata on winning-intelligence-v2 must not be claimed live
+    Production still serves the previously verified TRACE source SHA. MCP 2026-07-28,
+    stateless compare, resilience benchmark and new contract metadata must not be claimed live
     until an explicit exact-commit redeploy and public verification occur.
 
 production_verified_behavior:
@@ -61,8 +59,10 @@ production_verified_behavior:
     execution_authorized: false
 
 winning_intelligence_v2:
-  code_checkpoint_sha: d4398c624900964f96ab63fa2652b1994115eb9f
+  application_checkpoint_sha: 42def27390a468b4820830faf58ca2eed210662e
+  release_candidate_head_before_state_commits: a6d6e21dfd66c59ef51e303851b9da3f910ba8fe
   checkpoint_status: verified_not_deployed
+  upstream_sync_merge: 154c987fbcbce7bdf5a73995af4ffcb8bec93110
   official_scorecard:
     real_agent_user_value: 30
     demonstrated_capability_quality: 25
@@ -92,6 +92,9 @@ winning_intelligence_v2:
       rest: POST_/api/v1/decision/{token}/compare
       mcp_tool: compare_decision_packet
       persistence: caller_supplied_baseline
+      legacy_unversioned_baseline_supported: true
+      explicit_incompatible_version_rejected: true
+      malformed_baseline_returns_structured_error: true
     process_delta:
       rest: GET_/api/v1/decision/{token}/delta
       persistence: process_memory_non_durable
@@ -100,6 +103,8 @@ winning_intelligence_v2:
       mcp_tool: run_evidence_resilience_benchmark
       benchmark: evidence_resilience_policy_conformance_v1
       scope: controlled_policy_conformance_not_market_accuracy
+      fixture_epoch: "2026-09-15T00:00:00+00:00"
+      repeated_output_equality_tested: true
       scenarios:
         - full_five_channel_context
         - stale_oi_unavailable_funding
@@ -129,10 +134,12 @@ winning_intelligence_v2:
       destructive: false
       origin_validation: true
       protocol_method_name_validation: true
+      official_spec_alignment_checked: true
     docs:
       agent_integration: docs/AGENT-INTEGRATION.md
       operations: docs/OPERATIONS.md
       competitive_intelligence: docs/WINNING-INTELLIGENCE-V2.md
+      readme_claim_boundary: branch_capabilities_not_claimed_live_before_exact_deploy
 
 competitive_scan:
   closest_conceptual_competitor:
@@ -169,20 +176,22 @@ competitive_scan:
     - exact_commit_runtime_proof
 
 verification:
-  checkpoint_sha: d4398c624900964f96ab63fa2652b1994115eb9f
+  application_checkpoint_sha: 42def27390a468b4820830faf58ca2eed210662e
+  evidence_bound_readme_head: a6d6e21dfd66c59ef51e303851b9da3f910ba8fe
   ci_run:
-    number: 46
-    id: 35001362158
+    number: 55
+    id: 35002737909
     result: success
   cloudflare_runtime_verify:
-    number: 90
-    id: 35001362128
+    number: 99
+    id: 35002737940
     result: success
   gates:
     - full_backend_tests
     - frontend_build_and_typecheck
     - decision_contract_tests
-    - resilience_benchmark_tests
+    - malformed_and_versioned_baseline_tests
+    - deterministic_resilience_benchmark_repeatability
     - capability_contract_tests
     - MCP_conformance_tests
     - Binance_blocked_Coinbase_fallback_regression
