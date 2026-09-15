@@ -105,6 +105,42 @@ def _snapshot_id(packet: dict) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
+def _comparison_error(code: str, message: str) -> dict:
+    return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def _validated_signal_map(packet: dict, *, label: str) -> tuple[dict[str, dict] | None, dict | None]:
+    evidence = packet.get("evidence")
+    if not isinstance(evidence, dict):
+        return None, _comparison_error("INVALID_BASELINE", f"{label} evidence must be an object.")
+
+    expected_groups = ("supporting", "contradicting", "neutral")
+    signals: dict[str, dict] = {}
+    item_count = 0
+    for group_name in expected_groups:
+        group = evidence.get(group_name)
+        if not isinstance(group, list):
+            return None, _comparison_error(
+                "INVALID_BASELINE",
+                f"{label} evidence.{group_name} must be a list.",
+            )
+        item_count += len(group)
+        if item_count > 15:
+            return None, _comparison_error("INVALID_BASELINE", f"{label} contains too many evidence items.")
+        for item in group:
+            if not isinstance(item, dict):
+                return None, _comparison_error("INVALID_BASELINE", f"{label} evidence items must be objects.")
+            name = item.get("name")
+            if not isinstance(name, str) or not name or len(name) > 64:
+                return None, _comparison_error("INVALID_BASELINE", f"{label} evidence item name is invalid.")
+            try:
+                value = float(item.get("value"))
+            except (TypeError, ValueError):
+                return None, _comparison_error("INVALID_BASELINE", f"{label} evidence value for {name} is invalid.")
+            signals[name] = {**item, "value": value}
+    return signals, None
+
+
 async def get_decision_packet(token: str) -> dict:
     payload = await get_signal_payload(token)
     if not payload.get("ok"):
@@ -144,25 +180,41 @@ async def get_decision_packet(token: str) -> dict:
 
 def compare_decision_packets(previous: dict, current: dict, *, persistence: str = "caller_supplied_baseline") -> dict:
     if not isinstance(previous, dict) or not isinstance(current, dict):
-        return {"ok": False, "error": {"code": "INVALID_BASELINE", "message": "Decision packets must be objects."}}
+        return _comparison_error("INVALID_BASELINE", "Decision packets must be objects.")
     if not current.get("ok"):
         return current
+
     symbol = current.get("token")
     previous_symbol = previous.get("token", symbol)
     if previous_symbol != symbol:
-        return {
-            "ok": False,
-            "error": {"code": "TOKEN_MISMATCH", "message": "Baseline token must match current token."},
-        }
+        return _comparison_error("TOKEN_MISMATCH", "Baseline token must match current token.")
+
     required = ("score", "stance", "actionability", "evidence", "snapshot_id")
     if any(key not in previous for key in required):
-        return {
-            "ok": False,
-            "error": {"code": "INVALID_BASELINE", "message": "Baseline must be a prior SignalForge Decision Packet."},
-        }
+        return _comparison_error("INVALID_BASELINE", "Baseline must be a prior SignalForge Decision Packet.")
 
-    old_signals = {item["name"]: item for group in previous.get("evidence", {}).values() for item in group}
-    new_signals = {item["name"]: item for group in current.get("evidence", {}).values() for item in group}
+    baseline_version = previous.get("contract_version")
+    if baseline_version not in {None, DECISION_CONTRACT_VERSION}:
+        return _comparison_error(
+            "BASELINE_CONTRACT_VERSION_MISMATCH",
+            f"Baseline contract version {baseline_version!r} is not compatible with {DECISION_CONTRACT_VERSION}.",
+        )
+
+    old_signals, old_error = _validated_signal_map(previous, label="Baseline")
+    if old_error:
+        return old_error
+    new_signals, new_error = _validated_signal_map(current, label="Current packet")
+    if new_error:
+        return new_error
+    assert old_signals is not None
+    assert new_signals is not None
+
+    try:
+        previous_score = float(previous["score"])
+        current_score = float(current["score"])
+    except (TypeError, ValueError):
+        return _comparison_error("INVALID_BASELINE", "Decision packet scores must be numeric.")
+
     changed_drivers = []
     for name in sorted(set(old_signals) | set(new_signals)):
         old_value = float(old_signals.get(name, {}).get("value", 50.0))
@@ -171,7 +223,7 @@ def compare_decision_packets(previous: dict, current: dict, *, persistence: str 
         if abs(delta) >= 5:
             changed_drivers.append({"name": name, "from": old_value, "to": new_value, "delta": delta})
 
-    score_delta = round(float(current["score"]) - float(previous["score"]), 2)
+    score_delta = round(current_score - previous_score, 2)
     stance_changed = current["stance"] != previous["stance"]
     actionability_changed = current["actionability"] != previous["actionability"]
     material_change = (
@@ -183,6 +235,7 @@ def compare_decision_packets(previous: dict, current: dict, *, persistence: str 
     return {
         "ok": True,
         "contract_version": DECISION_CONTRACT_VERSION,
+        "baseline_contract_version": baseline_version or "legacy_unversioned",
         "token": symbol,
         "baseline_established": False,
         "material_change": material_change,
