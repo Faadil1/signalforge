@@ -14,26 +14,27 @@ function isValidApiUrl(url) {
 
 const rewriteTarget = isValidApiUrl(API_URL) ? API_URL : "http://localhost:8000";
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   output: CLOUDFLARE_STATIC_EXPORT ? "export" : "standalone",
   trailingSlash: CLOUDFLARE_STATIC_EXPORT,
-  async rewrites() {
-    if (CLOUDFLARE_STATIC_EXPORT) return [];
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${rewriteTarget}/api/:path*`,
-      },
-      {
-        source: "/health",
-        destination: `${rewriteTarget}/health`,
-      },
-      {
-        source: "/.well-known/xagent-verification.json",
-        destination: `${rewriteTarget}/.well-known/xagent-verification.json`,
-      },
-    ];
-  },
 };
+
+if (!CLOUDFLARE_STATIC_EXPORT) {
+  nextConfig.rewrites = async () => [
+    {
+      source: "/api/:path*",
+      destination: `${rewriteTarget}/api/:path*`,
+    },
+    {
+      source: "/health",
+      destination: `${rewriteTarget}/health`,
+    },
+    {
+      source: "/.well-known/xagent-verification.json",
+      destination: `${rewriteTarget}/.well-known/xagent-verification.json`,
+    },
+  ];
+}
 
 module.exports = nextConfig;
