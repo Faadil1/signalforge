@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import os
+
+import httpx2
+from workers import asgi, env
+
+# Cloudflare bindings are not exposed through os.environ by default, while the
+# existing SignalForge configuration layer intentionally reads os.getenv().
+# Mirror only the reviewed, non-secret runtime bindings before importing the app.
+for name in (
+    "GIT_COMMIT",
+    "PROJECT_SLUG",
+    "ALLOW_MOCK_FALLBACK",
+    "ENABLE_ALERTS",
+    "ENABLE_BACKTESTS",
+    "CORS_ORIGINS",
+    "RATE_LIMIT_ENABLED",
+):
+    try:
+        value = getattr(env, name)
+    except Exception:
+        continue
+    if value is not None:
+        os.environ[name] = str(value)
+
+# Cloudflare Python Workers supports httpx2 for async outbound HTTP. Alias it
+# before SignalForge imports its existing `httpx` client code so the public API
+# contract remains unchanged outside this runtime adapter.
+httpx2.alias_httpx()
+
+from main import app  # noqa: E402
+
+Default = asgi.entrypoint(app)
