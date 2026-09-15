@@ -485,6 +485,8 @@ def build_decision_stress_test(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         fragility_class = "multi_channel_resilient"
 
+    from services.evidence_sufficiency import build_minimum_sufficient_evidence
+
     return {
         "ok": True,
         "scope": "counterfactual_dropout_of_currently_observed_subsignals_not_market_replay",
@@ -493,6 +495,7 @@ def build_decision_stress_test(payload: dict[str, Any]) -> dict[str, Any]:
         "fragility_class": fragility_class,
         "minimum_dropouts_to_refusal": minimum_dropouts_to_refusal,
         "minimum_refusal_sets": refusal_sets,
+        "minimum_sufficient_evidence": build_minimum_sufficient_evidence(payload),
         "single_channel_dropouts": single_dropouts,
         "provider_dropouts": provider_dropouts,
         "lineage": lineage,
@@ -500,6 +503,7 @@ def build_decision_stress_test(payload: dict[str, Any]) -> dict[str, Any]:
         "recovery_requirements": build_recovery_requirements(payload),
         "limitations": [
             "Dropout tests remove already-observed evidence; they do not invent replacement values.",
+            "Minimum sufficient sets use current observed values only and are not causal or future sufficiency claims.",
             "Provider concentration is a lineage diagnostic, not a claim that channels are statistically independent or correlated.",
             "The evidence lease bounds source freshness only; it does not guarantee market or forecast validity.",
             "This stress test does not measure trading profitability or historical incident prevention.",
@@ -524,6 +528,7 @@ def _receipt_payload(packet: dict[str, Any]) -> dict[str, Any]:
         "regime",
         "evidence",
         "data_quality",
+        "evidence_admission_ledger",
         "evidence_lineage",
         "evidence_lease",
         "recovery_requirements",
