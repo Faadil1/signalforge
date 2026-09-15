@@ -43,5 +43,17 @@ jobs:
       - name: Resolve Python Worker dependencies
         run: uv sync --all-groups
 
+      - name: Import SignalForge with Cloudflare dependency set
+        env:
+          PYTHONPATH: api
+        run: |
+          uv run python - <<'PY'
+          import httpx2
+          httpx2.alias_httpx()
+          from main import app
+          assert app.title == "SignalForge API"
+          print("SignalForge FastAPI import: OK")
+          PY
+
       - name: Compile Cloudflare Worker without deploying
         run: uv run pywrangler deploy --dry-run
