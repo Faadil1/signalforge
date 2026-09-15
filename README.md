@@ -91,7 +91,7 @@ Freshness states are explicit: `fresh`, `stale`, `unavailable`, `unknown`, `inco
 
 ---
 
-## Agent-native API
+## Agent-native API + MCP
 
 ### Capability contract
 
@@ -99,9 +99,37 @@ Freshness states are explicit: `fresh`, `stale`, `unavailable`, `unknown`, `inco
 GET /api/v1/capabilities
 ```
 
-One machine-readable response describes SignalForge's agent job, tool contracts, state model, contract/policy versions, side-effect boundary, safe-failure semantics and execution-authority boundary.
+One machine-readable response describes SignalForge's agent job, tool contracts, state model, contract/policy versions, side-effect boundary, safe-failure semantics, MCP endpoint and execution-authority boundary.
 
-SignalForge currently exposes a REST capability surface and tool-ready contracts. It does **not** claim an MCP transport is included in this build.
+SignalForge exposes the same bounded product contract through two read-only surfaces:
+
+- REST under `/api/v1/*`
+- stateless MCP at `POST /mcp`, protocol version `2026-07-28`
+
+Both surfaces preserve `execution_authorized: false`.
+
+### MCP transport
+
+```http
+POST /mcp
+MCP-Protocol-Version: 2026-07-28
+```
+
+Supported methods:
+
+- `server/discover`
+- `tools/list`
+- `tools/call`
+
+Current MCP tools:
+
+- `get_decision_packet`
+- `compare_decision_packet`
+- `validate_price_signals`
+- `inspect_negative_path`
+- `run_evidence_resilience_benchmark`
+
+The MCP surface is stateless, read-only and side-effect free. It validates protocol/method/tool metadata, rejects untrusted browser origins, and exposes deterministic tool annotations. No MCP tool can authorize trading execution.
 
 ### Decision Packet
 
@@ -146,7 +174,7 @@ Content-Type: application/json
 <prior SignalForge Decision Packet>
 ```
 
-SignalForge fetches a fresh live Decision Packet and compares it with the caller-supplied baseline. This path is stateless and reproducible across serverless Worker isolates.
+SignalForge fetches a fresh live Decision Packet and compares it with the caller-supplied baseline. This path is stateless and reproducible across serverless Worker isolates. The same workflow is available through MCP tool `compare_decision_packet`.
 
 ### Process-local Signal Delta — convenience only
 
@@ -196,6 +224,8 @@ The controlled case must resolve to `insufficient_evidence` with `execution_auth
 GET /api/v1/evidence/resilience-benchmark
 ```
 
+MCP equivalent: `run_evidence_resilience_benchmark`.
+
 A deterministic policy-conformance suite checks whether SignalForge preserves the expected authority/refusal behavior across controlled evidence states:
 
 - full usable evidence context;
@@ -217,7 +247,7 @@ Open:
 /judge
 ```
 
-The current judge page calls the public service directly and shows raw responses for the six deployment-proof gates:
+The core deployment-proof gates remain:
 
 1. `/health`
 2. `/.well-known/xagent-verification.json`
@@ -226,9 +256,13 @@ The current judge page calls the public service directly and shows raw responses
 5. `/api/v1/validation/BTC?period_days=120&horizon_days=3`
 6. `/api/v1/evidence/negative-path`
 
-The capability contract and resilience benchmark are additional agent/productization probes and can be reviewed directly through their public endpoints after an exact-commit deployment containing this version.
+Winning Intelligence adds three productization probes:
 
-This keeps judge-facing evidence separate from marketing copy and makes both the positive path and refusal path independently callable.
+7. `/api/v1/capabilities`
+8. `/api/v1/evidence/resilience-benchmark`
+9. `POST /mcp` using `server/discover`, `tools/list`, or one of the five reviewed tools
+
+This keeps judge-facing evidence separate from marketing copy and makes both positive-path usefulness and fail-closed behavior independently callable.
 
 Demo runbook: [`docs/JUDGE-DEMO.md`](docs/JUDGE-DEMO.md).
 
@@ -251,6 +285,8 @@ The public deployment must expose the exact reviewed Git commit.
   "decision_contract_version": "1.1",
   "policy_version": "evidence-gate-2026-09",
   "capabilities": "/api/v1/capabilities",
+  "mcp": "/mcp",
+  "mcp_protocol_version": "2026-07-28",
   "negative_path": "/api/v1/evidence/negative-path",
   "resilience_benchmark": "/api/v1/evidence/resilience-benchmark"
 }
@@ -268,7 +304,7 @@ The public deployment must expose the exact reviewed Git commit.
 
 The commit is read from `GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA`, or `CF_PAGES_COMMIT_SHA`. `/health` reports `degraded` when no valid 40-character commit binding is available.
 
-The production Cloudflare Worker serves the static Next.js application and FastAPI proof/API surface from one public origin.
+The production Cloudflare Worker serves the static Next.js application and FastAPI REST/MCP proof surface from one public origin.
 
 ---
 
@@ -296,6 +332,7 @@ curl "http://localhost:8000/api/v1/strategy/momentum/backtest?token=BTC&period=9
 
 | Method | Path | Purpose |
 |---|---|---|
+| POST | `/mcp` | Stateless MCP 2026-07-28 discovery/list/call transport |
 | GET | `/api/v1/capabilities` | Machine-readable agent capability / state / authority contract |
 | GET | `/api/v1/signal/{token}` | Composite signal + provenance + freshness/confidence gate |
 | GET | `/api/v1/signals` | Batch signals |
