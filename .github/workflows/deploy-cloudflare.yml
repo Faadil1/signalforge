@@ -9,6 +9,8 @@ on:
         type: string
   push:
     branches: [cloudflare-runtime]
+    paths:
+      - .cloudflare-deploy-trigger
 
 permissions:
   contents: read
@@ -19,7 +21,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'deploy: cloudflare production'
     name: Deploy exact commit and verify runtime
     runs-on: ubuntu-latest
     steps:
@@ -79,7 +80,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          INPUT_BASE_URL: ${{ inputs.base_url }}
+          INPUT_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || '' }}
         run: |
           set -euo pipefail
           uv run pywrangler deploy \
@@ -99,7 +100,7 @@ jobs:
           fi
 
           if [ -z "$BASE_URL" ]; then
-            echo "Could not determine the public Worker URL from deploy output. Re-run with workflow input base_url."
+            echo "Could not determine the public Worker URL from deploy output. Re-run manually with workflow input base_url."
             exit 1
           fi
 
