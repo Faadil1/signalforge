@@ -4,6 +4,9 @@
   "main": "api/worker.py",
   "compatibility_date": "2026-09-15",
   "compatibility_flags": ["python_workers"],
+  "placement": {
+    "region": "aws:eu-central-1"
+  },
   "vars": {
     "PROJECT_SLUG": "signalforge",
     "ALLOW_MOCK_FALLBACK": "false",
