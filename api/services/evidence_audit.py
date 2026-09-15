@@ -27,13 +27,9 @@ def build_admission_ledger(payload: dict[str, Any]) -> dict[str, Any]:
     for raw_source in RAW_SOURCE_ORDER:
         record = freshness.get(raw_source) if isinstance(freshness.get(raw_source), dict) else {}
         status = str(record.get("status", "unknown"))
-        dependent_signals = sorted(
-            name for name, deps in SIGNAL_RAW_DEPENDENCIES.items() if raw_source in deps
-        )
+        dependent_signals = sorted(name for name, deps in SIGNAL_RAW_DEPENDENCIES.items() if raw_source in deps)
         admitted_signals = sorted(
-            name
-            for name in dependent_signals
-            if sub_signals.get(name, {}).get("available") is True
+            name for name in dependent_signals if sub_signals.get(name, {}).get("available") is True
         )
 
         quality_admitted = status == "fresh"
