@@ -6,52 +6,47 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Brand
         brand: {
-          DEFAULT: "#465FFF",
-          hover: "#3448D4",
-          soft: "#EEF1FF",
+          DEFAULT: "#0F766E",
+          hover: "#0B5F59",
+          soft: "#D7E8E4",
         },
-        // Light theme surfaces
         surface: {
-          DEFAULT: "#FFFFFF",
-          app: "#F6F8FC",
-          primary: "#FFFFFF",
-          secondary: "#F0F4FA",
-          elevated: "#FFFFFF",
+          DEFAULT: "#EAF0ED",
+          app: "#DCE3DF",
+          primary: "#EEF3F0",
+          secondary: "#D2DBD6",
+          elevated: "#F2F5F3",
         },
-        // Semantic
-        positive: "#079455",
-        negative: "#D92D20",
-        warning: "#DC6803",
-        info: "#1570EF",
-        // Text
+        positive: "#2F7D62",
+        negative: "#C75C52",
+        warning: "#B56A2B",
+        info: "#4E716B",
         text: {
-          DEFAULT: "#101828",
-          primary: "#101828",
-          secondary: "#667085",
-          subtle: "#98A2B3",
+          DEFAULT: "#1B2421",
+          primary: "#1B2421",
+          secondary: "#56635E",
+          subtle: "#7B8782",
         },
-        // Border
-        border: "#E4E7EC",
-        shadow: "rgba(16, 24, 40, 0.08)",
+        border: "#B9C5BF",
+        shadow: "rgba(28, 41, 36, 0.12)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
-        DEFAULT: "16px",
-        sm: "10px",
-        md: "12px",
-        lg: "16px",
-        xl: "20px",
-        "2xl": "24px",
+        DEFAULT: "6px",
+        sm: "4px",
+        md: "6px",
+        lg: "8px",
+        xl: "10px",
+        "2xl": "12px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.04)",
-        hover: "0 2px 4px rgba(16, 24, 40, 0.06), 0 8px 20px rgba(16, 24, 40, 0.08)",
-        drawer: "0 4px 16px rgba(16, 24, 40, 0.10)",
+        card: "0 1px 0 rgba(27, 36, 33, 0.05)",
+        hover: "0 6px 18px rgba(27, 36, 33, 0.08)",
+        drawer: "0 14px 40px rgba(27, 36, 33, 0.10)",
       },
       keyframes: {
         "fade-up": {
@@ -61,10 +56,21 @@ const config: Config = {
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
+        "scan-pass": {
+          "0%": { transform: "translateX(-120%)", opacity: "0" },
+          "20%": { opacity: "0.32" },
+          "100%": { transform: "translateX(240%)", opacity: "0" },
+        },
+        "evidence-pulse": {
+          "0%, 100%": { opacity: "0.45" },
+          "50%": { opacity: "1" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.3s ease-out",
         shimmer: "shimmer 1.5s infinite",
+        "scan-pass": "scan-pass 7s linear infinite",
+        "evidence-pulse": "evidence-pulse 2.8s ease-in-out infinite",
       },
     },
   },
