@@ -50,13 +50,14 @@ jobs:
       - name: Install Cloudflare Python build toolchain
         run: |
           pip install uv
-          uv sync --all-groups
+          uv sync --locked --all-groups
 
       - name: Smoke-test FastAPI with Cloudflare dependency set
         env:
           PYTHONPATH: api
         run: |
           uv run python - <<'PY'
+          import httpcore2
           import httpx2
           httpx2.alias_httpx()
           from main import app
@@ -74,6 +75,11 @@ jobs:
 
       - name: Compile exact Worker bundle
         run: uv run pywrangler deploy --dry-run
+
+      - name: Assert packaged HTTP runtime dependencies
+        run: |
+          test -d python_modules/httpx2
+          test -d python_modules/httpcore2
 
       - name: Deploy exact Git commit
         id: deploy
