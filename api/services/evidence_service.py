@@ -29,6 +29,12 @@ REAL_FAILURE_CASE = {
 
 
 def _controlled_bundle() -> RawSignalBundle:
+    """Represent the state *after* freshness gating removed degraded evidence.
+
+    The fixture intentionally preserves the stale/unavailable classifications in
+    source_meta while omitting those values from the usable bundle. This mirrors
+    the contract enforced by BinancePublicClient before signal fusion.
+    """
     now = datetime.now(UTC)
     closes = [50000.0 + i * 50.0 for i in range(30)]
     klines = []
@@ -49,8 +55,8 @@ def _controlled_bundle() -> RawSignalBundle:
         symbol="BTC",
         klines=klines,
         ticker={"last_price": closes[-1], "volume": 25000.0, "price_change_pct": 1.1},
-        open_interest={"open_interest": 22000.0, "mark_price": closes[-1]},
-        funding={"last_funding_rate": 0.0001},
+        open_interest={},
+        funding=None,
         source_meta={
             "mode": "live_partial",
             "provider": "controlled_failure_fixture",
@@ -61,6 +67,14 @@ def _controlled_bundle() -> RawSignalBundle:
                 "klines": {"status": "fresh", "age_seconds": 120, "max_age_seconds": 129600},
                 "open_interest": {"status": "stale", "age_seconds": 1800, "max_age_seconds": 300},
                 "funding": {"status": "unavailable", "age_seconds": None, "max_age_seconds": 900},
+            },
+            "quality_summary": {
+                "healthy_sources": ["klines", "ticker"],
+                "mock_sources": [],
+                "stale_sources": ["open_interest"],
+                "unavailable_sources": ["funding"],
+                "unknown_sources": [],
+                "inconsistent_sources": [],
             },
             "observed_at": now.isoformat(),
         },
@@ -73,6 +87,7 @@ def build_negative_path_evidence() -> dict:
         result["recommendation"] == "insufficient_evidence"
         and result["actionability"] == "insufficient_evidence"
         and result["execution_authorized"] is False
+        and result["available_signals"] == 3
     )
     return {
         "ok": True,
@@ -85,6 +100,7 @@ def build_negative_path_evidence() -> dict:
             "expected_behavior": "Degraded evidence must reduce usable coverage and force abstention rather than false directional confidence.",
             "result": result,
             "assertions": {
+                "degraded_sources_removed_from_usable_inputs": result["available_signals"] == 3,
                 "recommendation_is_insufficient_evidence": result["recommendation"] == "insufficient_evidence",
                 "actionability_is_insufficient_evidence": result["actionability"] == "insufficient_evidence",
                 "execution_authorized_is_false": result["execution_authorized"] is False,
