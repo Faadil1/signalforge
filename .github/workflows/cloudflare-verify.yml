@@ -64,6 +64,7 @@ jobs:
             tests/test_decision.py \
             tests/test_evidence.py \
             tests/test_capabilities.py \
+            tests/test_mcp.py \
             tests/test_cloudflare_market_fallback.py
 
       - name: Compile Cloudflare Worker without deploying
