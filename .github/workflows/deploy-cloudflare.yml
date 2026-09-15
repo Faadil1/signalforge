@@ -1,0 +1,169 @@
+name: Deploy Cloudflare Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Optional canonical URL to verify after deploy; leave blank to use the workers.dev URL printed by Cloudflare"
+        required: false
+        type: string
+  push:
+    branches: [cloudflare-runtime]
+    paths:
+      - .cloudflare-deploy-trigger
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signalforge-cloudflare-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy exact commit and verify runtime
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build judge UI as static assets
+        working-directory: web
+        env:
+          CLOUDFLARE_STATIC_EXPORT: "1"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm ci
+          npm run build
+          test -f out/index.html
+          test -f out/judge/index.html
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install Cloudflare Python build toolchain
+        run: |
+          pip install uv
+          uv sync --locked --all-groups
+
+      - name: Smoke-test FastAPI with Cloudflare dependency set
+        env:
+          PYTHONPATH: api
+        run: |
+          uv run python - <<'PY'
+          import httpcore2
+          import httpx2
+          httpx2.alias_httpx()
+          from main import app
+          assert app.title == "SignalForge"
+          print("SignalForge FastAPI import: OK")
+          PY
+
+      - name: Require Cloudflare credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+
+      - name: Compile exact Worker bundle
+        run: uv run pywrangler deploy --dry-run
+
+      - name: Assert packaged HTTP runtime dependencies
+        run: |
+          test -d python_modules/httpx2
+          test -d python_modules/httpcore2
+
+      - name: Deploy exact Git commit
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INPUT_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || '' }}
+        run: |
+          set -euo pipefail
+          uv run pywrangler deploy \
+            --var "GIT_COMMIT:${GITHUB_SHA}" \
+                  "PROJECT_SLUG:signalforge" \
+                  "ALLOW_MOCK_FALLBACK:false" \
+                  "ENABLE_ALERTS:false" \
+                  "ENABLE_BACKTESTS:true" \
+                  "CORS_ORIGINS:*" \
+                  "RATE_LIMIT_ENABLED:true" \
+            2>&1 | tee deploy.log
+
+          if [ -n "$INPUT_BASE_URL" ]; then
+            BASE_URL="${INPUT_BASE_URL%/}"
+          else
+            BASE_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' deploy.log | tail -1 || true)"
+          fi
+
+          if [ -z "$BASE_URL" ]; then
+            echo "Could not determine the public Worker URL from deploy output. Re-run manually with workflow input base_url."
+            exit 1
+          fi
+
+          echo "base_url=$BASE_URL" >> "$GITHUB_OUTPUT"
+          echo "Deployed URL: $BASE_URL"
+
+      - name: Verify same-origin X-Agent runtime proof
+        env:
+          BASE_URL: ${{ steps.deploy.outputs.base_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p verification
+          cp deploy.log verification/deploy.log
+
+          fetch_json() {
+            local path="$1"
+            local file="$2"
+            curl --fail --silent --show-error \
+              --retry 8 --retry-delay 2 --retry-all-errors \
+              "${BASE_URL}${path}" -o "verification/${file}"
+          }
+
+          curl --fail --silent --show-error --location \
+            --retry 8 --retry-delay 2 --retry-all-errors \
+            "${BASE_URL}/judge/" -o verification/judge.html
+
+          fetch_json "/health" "health.json"
+          fetch_json "/.well-known/xagent-verification.json" "xagent-verification.json"
+          fetch_json "/api/v1/decision/BTC" "decision-btc.json"
+          fetch_json "/api/v1/decision/BTC/delta" "delta-btc.json"
+          fetch_json "/api/v1/validation/BTC?period_days=120&horizon_days=3" "validation-btc.json"
+          fetch_json "/api/v1/evidence/negative-path" "negative-path.json"
+
+          test "$(jq -r '.status' verification/health.json)" = "ok"
+          test "$(jq -r '.commit' verification/health.json)" = "$GITHUB_SHA"
+          test "$(jq -r '.schemaVersion' verification/xagent-verification.json)" = "1"
+          test "$(jq -r '.slug' verification/xagent-verification.json)" = "signalforge"
+          test "$(jq -r '.commit' verification/xagent-verification.json)" = "$GITHUB_SHA"
+          test "$(jq -r '.execution_authorized' verification/decision-btc.json)" = "false"
+          test "$(jq -r '.data_quality.mode' verification/decision-btc.json)" != "mock"
+          test "$(jq -r '.ok' verification/delta-btc.json)" = "true"
+          test "$(jq -r '.full_composite_validated' verification/validation-btc.json)" = "false"
+          test "$(jq -r '.controlled_counter_case.passed' verification/negative-path.json)" = "true"
+          test "$(jq -r '.controlled_counter_case.result.execution_authorized' verification/negative-path.json)" = "false"
+
+          jq -n \
+            --arg url "$BASE_URL" \
+            --arg commit "$GITHUB_SHA" \
+            --arg run "$GITHUB_RUN_ID" \
+            '{verified:true, base_url:$url, commit:$commit, github_run_id:$run, same_origin:true, mock_fallback:false}' \
+            > verification/runtime-manifest.json
+
+      - name: Archive runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: signalforge-cloudflare-runtime-${{ github.sha }}
+          path: verification/
+          if-no-files-found: warn
+          retention-days: 90

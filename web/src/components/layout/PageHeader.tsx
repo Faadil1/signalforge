@@ -15,15 +15,16 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", className)}>
+    <div className={cn("grid gap-4 border-b border-border pb-5 sm:grid-cols-[1fr_auto] sm:items-end", className)}>
       <div>
-        <div className="flex items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight text-text md:text-3xl">{title}</h1>
+        <p className="field-label">SIGNALFORGE / ANALYSIS SURFACE</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-text md:text-4xl">{title}</h1>
           {badge}
         </div>
-        {subtitle && <p className="mt-1.5 text-[15px] text-text-secondary">{subtitle}</p>}
+        {subtitle && <p className="mt-2 max-w-3xl text-sm leading-6 text-text-secondary">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2 sm:mt-1">{actions}</div>}
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
 }

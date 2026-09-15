@@ -4,46 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
 import {
-  LayoutGrid,
-  Search,
-  LineChart,
+  Radar,
+  ScanSearch,
+  FlaskConical,
   Bell,
-  Code2,
+  Braces,
+  ShieldCheck,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { ENABLE_ALERTS, ENABLE_BACKTESTS } from "@/lib/features";
 
 const NAV = [
-  {
-    href: "/dashboard",
-    label: "Market Overview",
-    short: "Overview",
-    icon: LayoutGrid,
-  },
-  {
-    href: "/token",
-    label: "Signal Intelligence",
-    short: "Intelligence",
-    icon: Search,
-  },
+  { href: "/dashboard", label: "Observation Field", short: "Field", icon: Radar, code: "01" },
+  { href: "/token", label: "Evidence Inspect", short: "Inspect", icon: ScanSearch, code: "02" },
   ...(ENABLE_BACKTESTS
-    ? [
-        {
-          href: "/strategies",
-          label: "Strategy Lab",
-          short: "Strategies",
-          icon: LineChart,
-          experimental: true,
-        },
-      ]
+    ? [{ href: "/strategies", label: "Calibration Lab", short: "Lab", icon: FlaskConical, code: "03", experimental: true }]
     : []),
-  {
-    href: "/playground",
-    label: "Agent API",
-    short: "Agent API",
-    icon: Code2,
-  },
-  ...(ENABLE_ALERTS ? [{ href: "/alerts", label: "Alerts", short: "Alerts", icon: Bell }] : []),
+  { href: "/playground", label: "Agent Interface", short: "API", icon: Braces, code: "04" },
+  ...(ENABLE_ALERTS ? [{ href: "/alerts", label: "Alerts", short: "Alerts", icon: Bell, code: "05" }] : []),
 ];
 
 export function AppSidebar({ collapsed }: { collapsed?: boolean }) {
@@ -52,51 +30,65 @@ export function AppSidebar({ collapsed }: { collapsed?: boolean }) {
   return (
     <aside
       className={clsx(
-        "hidden shrink-0 flex-col border-r border-border bg-surface md:flex",
-        collapsed ? "w-[72px]" : "w-64"
+        "relative hidden shrink-0 flex-col border-r border-border bg-surface/88 backdrop-blur-sm md:flex",
+        collapsed ? "w-[72px]" : "w-[272px]"
       )}
     >
-      <div className="flex h-16 items-center border-b border-border px-5">
+      <div className="absolute right-[-1px] top-0 h-24 w-px bg-brand/60" />
+      <div className="border-b border-border px-5 py-5">
         <Logo />
+        {!collapsed && (
+          <div className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle">
+            <span>mode</span><span className="text-text-secondary">evidence instrument</span>
+            <span>policy</span><span className="text-text-secondary">fail closed</span>
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 space-y-1 p-3">
-        {NAV.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={clsx(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "bg-surface-secondary text-text ring-1 ring-inset ring-border"
-                  : "text-text-secondary hover:bg-surface-secondary hover:text-text"
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-              {!collapsed && item.experimental && (
-                <span className="chip bg-warning/10 text-warning text-[10px]">Experimental</span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-5">
+        {!collapsed && <p className="mb-3 px-2 font-mono text-[9px] uppercase tracking-[0.2em] text-text-subtle">Instrument index</p>}
+        <div className="space-y-1">
+          {NAV.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={clsx(
+                  "group relative flex min-h-11 items-center gap-3 border-l-2 px-3 py-2 text-sm transition-colors",
+                  active
+                    ? "border-l-brand bg-surface-secondary/80 text-text"
+                    : "border-l-transparent text-text-secondary hover:border-l-border hover:bg-surface-secondary/45 hover:text-text"
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <span className={clsx("font-mono text-[9px] tracking-[0.12em]", active ? "text-brand" : "text-text-subtle")}>{item.code}</span>
+                <item.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                {!collapsed && "experimental" in item && item.experimental && <span className="atlas-stamp border-warning/40 text-warning">LAB</span>}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
-      <div className="border-t border-border p-3">
-        <div className="rounded-md bg-surface-secondary p-3 ring-1 ring-inset ring-border">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-text-subtle">Signal Engine</p>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-positive" />
-            <span className="text-xs font-mono text-positive">ONLINE</span>
+      {!collapsed && (
+        <div className="border-t border-border p-4">
+          <div className="border border-brand/30 bg-brand/[0.035] p-3">
+            <div className="flex items-center justify-between">
+              <p className="atlas-kicker">RUNTIME FIELD</p>
+              <span className="h-1.5 w-1.5 animate-evidence-pulse rounded-full bg-positive" />
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-positive" />
+              <span className="font-mono text-[11px] font-semibold text-text">LIVE / MULTI-PROVIDER</span>
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-text-subtle">
+              Provenance is explicit. Missing evidence remains excluded. Execution authority stays separate.
+            </p>
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-text-subtle">
-            Live Binance market data · Keyless
-          </p>
         </div>
-      </div>
+      )}
     </aside>
   );
 }
