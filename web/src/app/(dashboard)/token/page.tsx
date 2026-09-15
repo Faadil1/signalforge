@@ -2,56 +2,60 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, AreaChart, Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
 } from "recharts";
-import { Search, TrendingUp, BarChart3, Info, Activity, ShieldCheck } from "lucide-react";
+import { Search, Radar, ScanSearch, ShieldCheck, Layers3 } from "lucide-react";
 import { fetchTicker, isSignalOk, safeJson, type SignalResponse, type SignalOk, type Ticker } from "@/lib/api";
 import { useInterval } from "@/lib/useInterval";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { PriceTicker } from "@/components/market/PriceTicker";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { ScoreGauge } from "@/components/charts/ScoreGauge";
 import { RecommendationBadge } from "@/components/signal/RecommendationBadge";
 import { Button } from "@/components/ui/Button";
-
-type HistoryPoint = { date: string; close: number; high: number; low: number; volume: number };
-
-const SIGNAL_LABEL: Record<string, string> = {
-  technical: "Technical",
-  trend: "Trend",
-  open_interest: "Open Interest",
-  funding: "Funding",
-  volume: "Volume",
-};
-
-const SIGNAL_COLOR: Record<string, string> = {
-  technical: "#3B82F6",
-  trend: "#22C55E",
-  open_interest: "#F59E0B",
-  funding: "#06B6D4",
-  volume: "#A855F7",
-};
+import { AtlasPanel } from "@/components/atlas/AtlasPanel";
+import { EvidenceRail } from "@/components/atlas/EvidenceRail";
+import { ActionabilityGate } from "@/components/atlas/ActionabilityGate";
 
 const POLL_MS = 10_000;
 const TICKER_POLL_MS = 4_000;
 
+type HistoryPoint = { date: string; close: number; high: number; low: number; volume: number };
+
+const SIGNAL_LABEL: Record<string, string> = {
+  technical: "Technical structure",
+  trend: "Directional trend",
+  open_interest: "Open interest",
+  funding: "Funding bias",
+  volume: "Volume pressure",
+};
+
+const SIGNAL_CODE: Record<string, string> = {
+  technical: "S-01",
+  trend: "S-02",
+  volume: "S-03",
+  open_interest: "S-04",
+  funding: "S-05",
+};
+
 const INTERPRETATION: Record<string, string> = {
-  insufficient_evidence: "Evidence coverage or confidence is below the actionability threshold. The correct system behavior is to abstain rather than manufacture directional confidence.",
-  hold: "Available evidence is balanced. Treat the packet as an observation, not an execution instruction.",
-  strong_buy: "Available price-derived evidence is strongly bullish. Verify coverage, provenance and missing channels before using the result downstream.",
+  insufficient_evidence: "Coverage or confidence is below the actionability threshold. The correct system behavior is abstention, not synthetic certainty.",
+  hold: "Available evidence is balanced. Treat the packet as observation, not execution instruction.",
+  strong_buy: "Available evidence is strongly bullish. Verify provenance and missing channels before using the packet downstream.",
   buy: "Available evidence leans bullish, but the packet remains research output with no execution authority.",
-  sell: "Available evidence leans bearish. Inspect the contributing channels and coverage before drawing a downstream conclusion.",
-  strong_sell: "Available evidence is strongly bearish. The packet remains advisory research output, never an execution authorization.",
+  sell: "Available evidence leans bearish. Inspect contributing channels and exclusions before drawing a downstream conclusion.",
+  strong_sell: "Available evidence is strongly bearish. Execution authority remains separate and false.",
 };
 
 function providerLabel(provider?: string): string {
-  if (provider === "multi_provider_public") return "Multi-provider public data";
-  if (provider === "binance_public") return "Binance public data";
-  if (provider === "coinbase_exchange") return "Coinbase Exchange";
-  return provider || "Explicit provenance";
+  if (provider === "multi_provider_public") return "MULTI-PROVIDER PUBLIC";
+  if (provider === "binance_public") return "BINANCE PUBLIC";
+  if (provider === "coinbase_exchange") return "COINBASE EXCHANGE";
+  return provider?.replaceAll("_", " ").toUpperCase() || "PROVENANCE PENDING";
 }
 
 export default function TokenPage() {
@@ -62,8 +66,8 @@ export default function TokenPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (t: string, opts?: { silent?: boolean }) => {
-    if (!opts?.silent) {
+  const load = useCallback(async (nextToken: string, silent = false) => {
+    if (!silent) {
       setLoading(true);
       setError(null);
       setSignal(null);
@@ -71,139 +75,144 @@ export default function TokenPage() {
       setTicker(null);
     }
     try {
-      const [sigRes, histRes, tickerRes] = await Promise.all([
-        fetch(`/api/v1/signal/${t}`),
-        fetch(`/api/v1/signal/${t}/history?days=30`),
-        fetchTicker(t),
+      const [signalRes, historyRes, tickerRes] = await Promise.all([
+        fetch(`/api/v1/signal/${nextToken}`),
+        fetch(`/api/v1/signal/${nextToken}/history?days=30`),
+        fetchTicker(nextToken),
       ]);
-      const sig = await safeJson<SignalResponse>(sigRes, {
+      const nextSignal = await safeJson<SignalResponse>(signalRes, {
         ok: false,
-        token: t,
+        token: nextToken,
         error: { code: "UNPARSEABLE", message: "Unexpected response" },
       });
-      if (!sigRes.ok || !histRes.ok || !isSignalOk(sig)) {
-        throw new Error(isSignalOk(sig) ? "Failed to load history" : sig.error.message || "Failed to load token");
+      if (!signalRes.ok || !historyRes.ok || !isSignalOk(nextSignal)) {
+        throw new Error(isSignalOk(nextSignal) ? "History unavailable" : nextSignal.error.message || "Evidence packet unavailable");
       }
-      const hist = await safeJson<{ history: HistoryPoint[] }>(histRes, { history: [] });
-      setSignal(sig);
-      setHistory(hist.history || []);
+      const nextHistory = await safeJson<{ history: HistoryPoint[] }>(historyRes, { history: [] });
+      setSignal(nextSignal);
+      setHistory(nextHistory.history || []);
       setTicker(tickerRes);
-    } catch (e) {
-      if (!opts?.silent) setError(e instanceof Error ? e.message : "Failed to load token");
+    } catch (cause) {
+      if (!silent) setError(cause instanceof Error ? cause.message : "Evidence packet unavailable");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    load("BTC");
+    void load("BTC");
   }, [load]);
-
-  useInterval(() => load(token, { silent: true }), POLL_MS);
+  useInterval(() => void load(token, true), POLL_MS);
   useInterval(async () => setTicker(await fetchTicker(token)), TICKER_POLL_MS);
 
-  const sub = signal?.sub_signals || [];
+  const subSignals = signal?.sub_signals || [];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={`${token} Signal Intelligence`}
-        subtitle="Evidence-gated analysis with explicit provenance and exclusion states"
-        badge={loading ? <StatusBadge status="stale" label="Loading" /> : error ? <StatusBadge status="error" /> : <StatusBadge status="live" />}
-        actions={
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
-              <input type="text" value={token} maxLength={12} onChange={(e) => setToken(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && load(token)} className="input pl-8 w-28 font-mono" placeholder="Token" />
-            </div>
-            <Button onClick={() => load(token)} loading={loading}>Analyze</Button>
+    <div className="space-y-5">
+      <header className="grid gap-5 border-b border-border pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <p className="field-label">02 / EVIDENCE INSPECT</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.045em] text-text md:text-5xl">{token} / evidence dossier</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">One market, opened as a layered evidence record: what was observed, what entered fusion, what was excluded, and where actionability stops.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
+            <input className="input w-32 pl-9 font-mono" value={token} maxLength={12} onChange={(event) => setToken(event.target.value.toUpperCase())} onKeyDown={(event) => event.key === "Enter" && void load(token)} />
           </div>
-        }
-      />
+          <Button onClick={() => void load(token)} loading={loading}><ScanSearch className="h-4 w-4" /> Inspect</Button>
+        </div>
+      </header>
 
-      {error && <Card className="p-4 text-sm text-negative font-mono flex items-center justify-between"><span>{error}</span><button onClick={() => load(token)} className="underline text-brand">retry</button></Card>}
+      {error && <div className="border border-negative/40 bg-negative/5 px-4 py-3 font-mono text-[11px] text-negative">INSPECT ERROR / {error}</div>}
 
-      {!signal && !error && loading && (
-        <div className="grid gap-6 lg:grid-cols-3"><div className="card p-6 flex items-center justify-center"><div className="skeleton h-40 w-40 rounded-full" /></div><div className="space-y-4 lg:col-span-2"><div className="skeleton h-4 w-2/3" /><div className="skeleton h-4 w-full" /><div className="skeleton h-4 w-5/6" /></div></div>
-      )}
-
-      {signal && (
+      {!signal && loading ? (
+        <div className="grid gap-5 xl:grid-cols-12"><div className="skeleton h-[440px] xl:col-span-5" /><div className="skeleton h-[440px] xl:col-span-7" /></div>
+      ) : signal ? (
         <>
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card>
-              <CardBody className="flex flex-col items-center justify-center py-8">
-                <ScoreGauge score={signal.score} />
-                <div className="mt-4"><RecommendationBadge recommendation={signal.recommendation} /></div>
-                {signal.price != null && <PriceTicker price={ticker?.price ?? signal.price} changePct={ticker?.price_change_pct} className="mt-3 text-sm text-text-secondary" />}
-                <p className="mt-2 font-mono text-xs text-text-subtle">confidence {(signal.confidence * 100).toFixed(0)}% · coverage {(signal.coverage * 100).toFixed(0)}%</p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <Badge tone="neutral">{providerLabel(signal.source_meta?.provider)}</Badge>
-                  <Badge tone="warning">execution unauthorized</Badge>
-                </div>
-              </CardBody>
-            </Card>
+          <div className="grid gap-5 xl:grid-cols-12">
+            <AtlasPanel label="Decision Plate" code="INSP-A" tone={signal.actionability === "insufficient_evidence" ? "critical" : "live"} meta={providerLabel(signal.source_meta?.provider)} className="xl:col-span-5">
+              <div className="flex items-start justify-between gap-4">
+                <div><p className="atlas-micro">market</p><p className="mt-2 font-mono text-3xl font-semibold text-text">{signal.token}</p>{signal.price != null && <PriceTicker price={ticker?.price ?? signal.price} changePct={ticker?.price_change_pct} className="mt-1 text-xs text-text-secondary" />}</div>
+                <RecommendationBadge recommendation={signal.recommendation} />
+              </div>
 
-            <Card className="lg:col-span-2">
-              <CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4 text-brand" /> Evidence Breakdown</CardTitle></CardHeader>
-              <CardBody className="space-y-3">
-                {sub.map((s) => (
-                  <div key={s.name} className={s.available ? "flex items-center gap-3" : "flex items-center gap-3 rounded-md border border-dashed border-border bg-surface-secondary/40 p-2"}>
-                    <span className="w-28 text-xs font-medium text-text-secondary">{SIGNAL_LABEL[s.name] || s.name.replace("_", " ")}</span>
-                    {s.available ? (
-                      <>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-secondary"><div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.max(0, Math.min(100, s.value))}%`, backgroundColor: SIGNAL_COLOR[s.name] || "#22C55E" }} /></div>
-                        <span className="w-8 text-right text-xs font-mono tabular-nums text-text-secondary">{s.value}</span>
-                        <Badge tone="positive">used</Badge>
-                      </>
-                    ) : (
-                      <><span className="ml-auto font-mono text-[10px] uppercase tracking-wider text-text-subtle">not used in fusion</span><Badge tone="neutral">excluded</Badge></>
-                    )}
+              <div className="my-8 border-y border-border py-7">
+                <div className="grid grid-cols-[1fr_auto] items-end gap-5">
+                  <div><p className="atlas-micro">composite score</p><p className="decision-score mt-3 font-mono text-[108px] font-semibold text-text">{signal.score.toFixed(0)}</p></div>
+                  <Radar className="mb-2 h-12 w-12 text-brand/55" />
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-px border border-border bg-border">
+                  <div className="bg-surface/80 p-3"><p className="atlas-micro">confidence</p><p className="mt-1 font-mono text-2xl font-semibold text-text">{Math.round(signal.confidence * 100)}%</p></div>
+                  <div className="bg-surface/80 p-3"><p className="atlas-micro">coverage</p><p className="mt-1 font-mono text-2xl font-semibold text-text">{Math.round(signal.coverage * 100)}%</p></div>
+                </div>
+              </div>
+
+              <ActionabilityGate actionability={signal.actionability} coverage={signal.coverage} confidence={signal.confidence} executionAuthorized={signal.execution_authorized} />
+            </AtlasPanel>
+
+            <AtlasPanel label="Evidence Strata" code="INSP-B" meta={`${signal.available_signals}/${signal.total_signals} used`} className="xl:col-span-7">
+              <div className="border-y border-border">
+                {subSignals.map((subSignal, index) => (
+                  <div key={subSignal.name} className="grid gap-3 border-b border-border py-4 last:border-b-0 md:grid-cols-[56px_1fr_92px_110px] md:items-center">
+                    <span className="font-mono text-[10px] text-text-subtle">{SIGNAL_CODE[subSignal.name] || `S-0${index + 1}`}</span>
+                    <div>
+                      <div className="flex items-center gap-2"><span className={subSignal.available ? "evidence-dot evidence-dot-live" : "evidence-dot evidence-dot-excluded"} /><p className="text-sm font-semibold text-text">{SIGNAL_LABEL[subSignal.name] || subSignal.name}</p></div>
+                      <p className="mt-1 text-xs leading-5 text-text-subtle">{subSignal.reason}</p>
+                    </div>
+                    <div className="font-mono text-sm text-text">{subSignal.available ? subSignal.value.toFixed(1) : "—"}</div>
+                    <span className={subSignal.available ? "atlas-stamp atlas-stamp-live" : "atlas-stamp atlas-stamp-refused"}>{subSignal.available ? "USED" : "EXCLUDED"}</span>
                   </div>
                 ))}
-                <p className="pt-1 text-[11px] text-text-subtle font-mono">{signal.available_signals}/{signal.total_signals} usable · coverage {(signal.coverage * 100).toFixed(0)}% · {signal.actionability.replace("_", " ")}</p>
-              </CardBody>
-            </Card>
+              </div>
+              <div className="mt-5"><EvidenceRail sources={signal.source_meta?.sources} coverage={signal.coverage} compact /></div>
+            </AtlasPanel>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-positive" /> Price · 30d daily</CardTitle></CardHeader>
-              <CardBody><ResponsiveContainer width="100%" height={220}><AreaChart data={history}><defs><linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22C55E" stopOpacity={0.2} /><stop offset="100%" stopColor="#22C55E" stopOpacity={0} /></linearGradient></defs><XAxis dataKey="date" tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} domain={["auto", "auto"]} tickFormatter={(v) => v.toLocaleString()} width={64} /><Tooltip contentStyle={{ background: "var(--sf-surface)", border: "1px solid var(--sf-border)", borderRadius: 10, fontSize: 12, color: "var(--sf-text)" }} /><Area type="monotone" dataKey="close" stroke="#22C55E" strokeWidth={2} fill="url(#priceGrad)" /></AreaChart></ResponsiveContainer></CardBody>
-            </Card>
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-info" /> Volume · 30d daily</CardTitle></CardHeader>
-              <CardBody><ResponsiveContainer width="100%" height={220}><BarChart data={history}><XAxis dataKey="date" tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 10, fill: "#98A2B3" }} tickLine={false} axisLine={false} width={64} /><Tooltip contentStyle={{ background: "var(--sf-surface)", border: "1px solid var(--sf-border)", borderRadius: 10, fontSize: 12, color: "var(--sf-text)" }} /><Bar dataKey="volume" fill="#1570EF" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></CardBody>
-            </Card>
+          <div className="grid gap-5 xl:grid-cols-12">
+            <AtlasPanel label="Price Trace" code="INSP-C" meta="30D / DAILY" className="xl:col-span-7">
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={history}>
+                  <defs>
+                    <linearGradient id="atlasPrice" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#0F766E" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#0F766E" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#7B8782" }} tickLine={false} axisLine={{ stroke: "#B9C5BF" }} minTickGap={28} />
+                  <YAxis tick={{ fontSize: 9, fill: "#7B8782" }} tickLine={false} axisLine={false} domain={["auto", "auto"]} tickFormatter={(value) => value.toLocaleString()} width={64} />
+                  <Tooltip contentStyle={{ background: "#EAF0ED", border: "1px solid #B9C5BF", borderRadius: 2, fontSize: 11, color: "#1B2421" }} />
+                  <Area type="monotone" dataKey="close" stroke="#0F766E" strokeWidth={2} fill="url(#atlasPrice)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </AtlasPanel>
+
+            <AtlasPanel label="Volume Trace" code="INSP-D" meta="30D / DAILY" className="xl:col-span-5">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={history}>
+                  <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#7B8782" }} tickLine={false} axisLine={{ stroke: "#B9C5BF" }} minTickGap={28} />
+                  <YAxis tick={{ fontSize: 9, fill: "#7B8782" }} tickLine={false} axisLine={false} width={60} />
+                  <Tooltip contentStyle={{ background: "#EAF0ED", border: "1px solid #B9C5BF", borderRadius: 2, fontSize: 11, color: "#1B2421" }} />
+                  <Bar dataKey="volume" fill="#A44E2B" radius={[1,1,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </AtlasPanel>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle>Evidence Drivers</CardTitle></CardHeader>
-              <CardBody className="space-y-3">
-                {sub.map((s) => (
-                  <div key={s.name} className="rounded-lg bg-surface-secondary p-3 ring-1 ring-inset ring-border">
-                    <div className="flex items-center justify-between"><span className="text-[13px] font-semibold font-mono text-text">{SIGNAL_LABEL[s.name] || s.name}</span><Badge tone={s.available ? "positive" : "neutral"}>{s.available ? "used" : "excluded"}</Badge></div>
-                    <p className="mt-1.5 text-[13px] leading-relaxed text-text-secondary">{s.reason}</p>
-                    <div className="mt-1.5 font-mono text-[11px] text-text-subtle">{s.available ? `value ${s.value} · conf ${(s.confidence * 100).toFixed(0)}%` : "Unavailable evidence · not used in composite"}</div>
-                  </div>
-                ))}
-              </CardBody>
-            </Card>
+          <div className="grid gap-5 xl:grid-cols-12">
+            <AtlasPanel label="Interpretation Boundary" code="INSP-E" tone="quiet" className="xl:col-span-5">
+              <div className="flex items-start gap-3"><Layers3 className="mt-0.5 h-5 w-5 text-brand" /><div><p className="text-sm font-semibold text-text">What the packet means</p><p className="mt-2 text-sm leading-6 text-text-secondary">{INTERPRETATION[signal.actionability === "insufficient_evidence" ? "insufficient_evidence" : signal.recommendation] || "Inspect the evidence packet before drawing a downstream conclusion."}</p></div></div>
+            </AtlasPanel>
 
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Info className="h-4 w-4 text-brand" /> Interpretation & Provenance</CardTitle></CardHeader>
-              <CardBody className="space-y-3">
-                <div className="rounded-lg bg-surface-secondary p-4 ring-1 ring-inset ring-border"><p className="text-[13px] leading-relaxed text-text-secondary">{INTERPRETATION[signal.actionability === "insufficient_evidence" ? "insufficient_evidence" : signal.recommendation] || "Inspect the evidence packet before drawing a downstream conclusion."}</p></div>
-                <div className="rounded-lg bg-surface-secondary p-4 ring-1 ring-inset ring-border">
-                  <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-positive" /><span className="text-[13px] font-semibold text-text">Observed source provenance</span></div>
-                  <div className="mt-3 flex flex-wrap gap-2">{Object.entries(signal.source_meta?.sources || {}).map(([name, source]) => <Badge key={name} tone={source === "unavailable" ? "neutral" : "brand"}>{name.replace("open_interest", "OI")}: {source}</Badge>)}</div>
-                  <p className="mt-3 text-[12px] leading-relaxed text-text-subtle">Provider mode: {providerLabel(signal.source_meta?.provider)}. Unavailable channels stay unavailable; SignalForge does not relabel or synthesize them.</p>
-                </div>
-              </CardBody>
-            </Card>
+            <AtlasPanel label="Provenance Contract" code="INSP-F" tone="live" className="xl:col-span-7">
+              <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-start">
+                <div><div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-positive" /><p className="text-sm font-semibold text-text">Observed provider chain</p></div><p className="mt-2 text-xs leading-5 text-text-secondary">{providerLabel(signal.source_meta?.provider)}. Unavailable channels remain unavailable; no source is relabelled as healthy to increase coverage.</p></div>
+                <span className="atlas-stamp atlas-stamp-refused">EXECUTION UNAUTHORIZED</span>
+              </div>
+            </AtlasPanel>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
