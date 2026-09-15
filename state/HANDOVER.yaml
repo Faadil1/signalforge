@@ -1,0 +1,41 @@
+project: signalforge
+handover_type: evidence_failure_hardening
+branch: evidence-failure-hardening
+pull_request: 2
+objective: >-
+  Make the X-Agent submission robust against judge scrutiny by adding a real negative event,
+  freshness/data-quality gating, an explicit refusal path, bounded claims, deterministic demo,
+  rubric mapping, adversarial Q&A, and final deployment/archive gates.
+completed:
+  - Canonical real failure record: AWS Tokyo / Binance / 2025-04-15.
+  - Reuters is used only as an external source for historical facts; no historical replay is claimed.
+  - Added data-quality policy with fresh/stale/unavailable/unknown/inconsistent/mock states.
+  - Binance client records source timestamps and removes non-fresh live evidence before fusion.
+  - Added /api/v1/evidence/negative-path and exposed it on /judge and playground catalog.
+  - Negative path demonstrates 3/5 usable evidence -> insufficient_evidence -> execution_authorized false.
+  - Added tests for freshness classification, stale-source sanitization and public refusal behavior.
+  - Added SUBMISSION-ASSURANCE, JUDGE-DEMO and ADVERSARIAL-QA docs.
+  - Updated README, JUDGE-READY and XAGENT-SUBMISSION-CHECKLIST for consistent claims.
+  - Corrected stale README Next.js badge from 14.2 to 16.3.5.
+next_steps:
+  - Inspect latest GitHub Actions run for PR #2.
+  - Fix any backend Ruff/format/test failure and any frontend audit/lint/type/build failure.
+  - Re-run until CI is green on the exact branch head.
+  - Update PR #2 body with final verified SHA and CI run.
+  - Move PR #2 from draft to ready only after exact-head CI is green.
+  - Do not claim SUBMISSION_READY until public deployment proof is archived.
+post_merge_runtime_gate:
+  required_calls:
+    - /health
+    - /.well-known/xagent-verification.json
+    - /api/v1/decision/BTC
+    - /api/v1/decision/BTC/delta
+    - /api/v1/validation/BTC?period_days=120&horizon_days=3
+    - /api/v1/evidence/negative-path
+  required_runtime_posture:
+    allow_mock_fallback: false
+    alerts_enabled: false
+    exact_commit_binding: true
+    same_origin_judge_surface: true
+final_state_target: SUBMISSION_READY
+current_state: CODE_HARDENING_AWAITING_GREEN_CI
