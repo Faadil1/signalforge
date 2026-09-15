@@ -16,7 +16,7 @@ export type SignalOk = {
   price: number;
   score: number;
   confidence: number;
-  recommendation: string | null;
+  recommendation: string;
   timestamp: string;
   available_signals: number;
   total_signals: number;

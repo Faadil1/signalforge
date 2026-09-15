@@ -17,12 +17,22 @@ SIGNAL_META = {
     "technical": {"name": "Technical", "description": "RSI + moving-average structure from daily klines"},
     "trend": {"name": "Trend", "description": "Price direction, higher-high/lower-low structure"},
     "funding": {"name": "Funding", "description": "Funding-rate extreme detection (crowding)"},
-    "open_interest": {"name": "Open Interest", "description": "Positioning intensity contextualized by price direction"},
+    "open_interest": {
+        "name": "Open Interest",
+        "description": "Positioning intensity contextualized by price direction",
+    },
     "volume": {"name": "Volume", "description": "Directional volume surge vs. 10-day average"},
 }
 
 SignalName = Literal["technical", "trend", "open_interest", "funding", "volume"]
-Recommendation = Literal["strong_buy", "buy", "hold", "sell", "strong_sell"]
+Recommendation = Literal[
+    "strong_buy",
+    "buy",
+    "hold",
+    "sell",
+    "strong_sell",
+    "insufficient_evidence",
+]
 Actionability = Literal["actionable", "observe", "insufficient_evidence"]
 DataMode = Literal["live", "live_partial", "mock", "historical_proxy", "unknown"]
 
@@ -44,7 +54,7 @@ class CompositeSignal:
     score: float
     confidence: float
     sub_signals: list[SubSignal]
-    recommendation: Recommendation | None
+    recommendation: Recommendation
     timestamp: str
     available_signals: int = 0
     total_signals: int = 5

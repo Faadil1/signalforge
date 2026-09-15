@@ -30,7 +30,7 @@ class SignalOk(BaseModel):
     price: float
     score: float
     confidence: float
-    recommendation: str | None
+    recommendation: str
     timestamp: str
     available_signals: int
     total_signals: int

@@ -92,7 +92,9 @@ def _score_trend(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     higher_highs = int(last_high > max(highs)) if highs else 0
     higher_lows = int(last_low > min(lows)) if lows else 0
     change_signal = (change + 5.0) / 10.0 * 100.0
-    structure_signal = 70.0 if (higher_highs + higher_lows) == 2 else 30.0 if (higher_highs + higher_lows) == 0 else 50.0
+    structure_signal = (
+        70.0 if (higher_highs + higher_lows) == 2 else 30.0 if (higher_highs + higher_lows) == 0 else 50.0
+    )
     return _clamp(change_signal * 0.7 + structure_signal * 0.3), 0.6, True, f"{change:+.2f}% over {n}d"
 
 
@@ -111,7 +113,8 @@ def _score_open_interest(bundle: RawSignalBundle) -> tuple[float, float, bool, s
     price_change_pct = _safe_float(ticker.get("price_change_pct"), 0.0)
     direction = 1.0 if price_change_pct > 0 else -1.0 if price_change_pct < 0 else 0.0
     score = 50.0 + direction * crowding * 25.0
-    return _clamp(score), 0.45, True, f"OI={oi_value:.0f} ({ratio:.2f}x vol), 24h price {price_change_pct:+.2f}%"
+    reason = f"OI={oi_value:.0f} ({ratio:.2f}x vol), 24h price {price_change_pct:+.2f}%"
+    return _clamp(score), 0.45, True, reason
 
 
 def _score_funding(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
@@ -135,7 +138,9 @@ def _score_volume(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     if len(closes) < 2:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Insufficient close data for volume"
     daily_volume_usd = _safe_float(klines[-1].get("volume"), 0.0) * closes[-1]
-    avg_volume_usd = sum(_safe_float(c.get("volume"), 0.0) * _safe_float(c.get("close"), 0.0) for c in klines[-10:]) / min(10, len(klines[-10:]))
+    avg_volume_usd = sum(
+        _safe_float(c.get("volume"), 0.0) * _safe_float(c.get("close"), 0.0) for c in klines[-10:]
+    ) / min(10, len(klines[-10:]))
     if avg_volume_usd <= 0:
         return NEUTRAL_VALUE, NEUTRAL_CONFIDENCE, False, "Zero average volume"
     ratio = daily_volume_usd / avg_volume_usd
@@ -143,7 +148,8 @@ def _score_volume(bundle: RawSignalBundle) -> tuple[float, float, bool, str]:
     price_change = (closes[-1] - closes[-2]) / denominator
     direction = 1.0 if price_change >= 0 else -1.0
     score = 50.0 + (ratio - 1.0) * 50.0 * direction
-    return _clamp(score), 0.5, True, f"Vol x{ratio:.2f} vs 10d avg ({'up' if price_change >= 0 else 'down'} {abs(price_change) * 100:.1f}%)"
+    reason = f"Vol x{ratio:.2f} vs 10d avg ({'up' if price_change >= 0 else 'down'} {abs(price_change) * 100:.1f}%)"
+    return _clamp(score), 0.5, True, reason
 
 
 SCORERS: dict[SignalName, Callable[[RawSignalBundle], tuple[float, float, bool, str]]] = {
@@ -172,50 +178,100 @@ def compute_composite(bundle: RawSignalBundle) -> CompositeSignal:
     weighted_sum = 0.0
     available_weight = 0.0
     available_count = 0
+
     for name, scorer in SCORERS.items():
         try:
             value, confidence, available, reason = scorer(bundle)
         except Exception:
             value, confidence, available, reason = NEUTRAL_VALUE, 0.0, False, f"Error computing {name} signal"
+
         weight = SIGNAL_WEIGHTS[name]
         safe_value = _safe_float(value, NEUTRAL_VALUE)
         safe_confidence = _safe_float(confidence, 0.0)
-        sub_signals.append(SubSignal(name=name, value=round(_clamp(safe_value), 2), confidence=round(max(0.0, min(1.0, safe_confidence)), 3), available=available, reason=reason, raw={}))
+        sub_signals.append(
+            SubSignal(
+                name=name,
+                value=round(_clamp(safe_value), 2),
+                confidence=round(max(0.0, min(1.0, safe_confidence)), 3),
+                available=available,
+                reason=reason,
+                raw={},
+            )
+        )
         if available:
             weighted_sum += safe_value * weight
             available_weight += weight
             available_count += 1
-    score = _safe_float(weighted_sum / available_weight if available_weight > 0 else NEUTRAL_VALUE, NEUTRAL_VALUE)
+
+    score = _safe_float(
+        weighted_sum / available_weight if available_weight > 0 else NEUTRAL_VALUE,
+        NEUTRAL_VALUE,
+    )
     coverage = available_count / len(SCORERS) if SCORERS else 0.0
     confs = [s.confidence for s in sub_signals if s.available]
     avg_confidence = statistics.mean(confs) if confs else NEUTRAL_CONFIDENCE
     adjusted_confidence = _safe_float(avg_confidence, NEUTRAL_CONFIDENCE) * coverage
     raw_recommendation = _recommendation(_clamp(score))
+
     if coverage < MIN_ACTIONABLE_COVERAGE or adjusted_confidence < MIN_ACTIONABLE_CONFIDENCE:
-        recommendation = None
+        recommendation = "insufficient_evidence"
         actionability = "insufficient_evidence"
     else:
         recommendation = raw_recommendation
         actionability = "observe" if raw_recommendation == "hold" else "actionable"
-    last_price = _safe_float(bundle.ticker.get("last_price", 0.0) if isinstance(bundle.ticker, dict) else 0.0, 0.0)
+
+    last_price = _safe_float(
+        bundle.ticker.get("last_price", 0.0) if isinstance(bundle.ticker, dict) else 0.0,
+        0.0,
+    )
     source_meta = dict(bundle.source_meta or {})
     data_mode = source_meta.get("mode", "unknown")
     if data_mode not in {"live", "live_partial", "mock", "historical_proxy"}:
         data_mode = "unknown"
+
     return CompositeSignal(
-        token=bundle.symbol.upper(), price=last_price, score=round(_clamp(score), 2), confidence=round(max(0.0, min(1.0, adjusted_confidence)), 3),
-        sub_signals=sub_signals, recommendation=recommendation, timestamp=datetime.now(UTC).isoformat(), available_signals=available_count,
-        total_signals=len(SCORERS), coverage=round(max(0.0, min(1.0, coverage)), 3), actionability=actionability,
-        execution_authorized=False, data_mode=data_mode, source_meta=source_meta,
+        token=bundle.symbol.upper(),
+        price=last_price,
+        score=round(_clamp(score), 2),
+        confidence=round(max(0.0, min(1.0, adjusted_confidence)), 3),
+        sub_signals=sub_signals,
+        recommendation=recommendation,
+        timestamp=datetime.now(UTC).isoformat(),
+        available_signals=available_count,
+        total_signals=len(SCORERS),
+        coverage=round(max(0.0, min(1.0, coverage)), 3),
+        actionability=actionability,
+        execution_authorized=False,
+        data_mode=data_mode,
+        source_meta=source_meta,
     )
 
 
 def payload_from_bundle(bundle: RawSignalBundle) -> dict:
     composite = compute_composite(bundle)
     return {
-        "ok": True, "token": composite.token, "price": composite.price, "score": composite.score, "confidence": composite.confidence,
-        "recommendation": composite.recommendation, "timestamp": composite.timestamp, "available_signals": composite.available_signals,
-        "total_signals": composite.total_signals, "coverage": composite.coverage, "actionability": composite.actionability,
-        "execution_authorized": composite.execution_authorized, "data_mode": composite.data_mode, "source_meta": composite.source_meta,
-        "sub_signals": [{"name": s.name, "value": s.value, "confidence": s.confidence, "available": s.available, "reason": s.reason} for s in composite.sub_signals],
+        "ok": True,
+        "token": composite.token,
+        "price": composite.price,
+        "score": composite.score,
+        "confidence": composite.confidence,
+        "recommendation": composite.recommendation,
+        "timestamp": composite.timestamp,
+        "available_signals": composite.available_signals,
+        "total_signals": composite.total_signals,
+        "coverage": composite.coverage,
+        "actionability": composite.actionability,
+        "execution_authorized": composite.execution_authorized,
+        "data_mode": composite.data_mode,
+        "source_meta": composite.source_meta,
+        "sub_signals": [
+            {
+                "name": s.name,
+                "value": s.value,
+                "confidence": s.confidence,
+                "available": s.available,
+                "reason": s.reason,
+            }
+            for s in composite.sub_signals
+        ],
     }

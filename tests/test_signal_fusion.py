@@ -8,15 +8,41 @@ from services.signal_fusion import _recommendation, compute_composite, payload_f
 
 def _bundle() -> RawSignalBundle:
     closes = [50.0 + i * 0.1 for i in range(30)]
-    klines = [{"date": datetime.now(UTC).isoformat(), "open": c - 0.05, "high": c + 0.1, "low": c - 0.1, "close": c, "volume": 1000.0 + i} for i, c in enumerate(closes)]
-    return RawSignalBundle(symbol="BTC", klines=klines, ticker={"last_price": 50000.0, "volume": 10000.0, "price_change_pct": 1.2}, open_interest={}, funding=None, source_meta={"mode": "live_partial", "provider": "binance_public"})
+    klines = [
+        {
+            "date": datetime.now(UTC).isoformat(),
+            "open": c - 0.05,
+            "high": c + 0.1,
+            "low": c - 0.1,
+            "close": c,
+            "volume": 1000.0 + i,
+        }
+        for i, c in enumerate(closes)
+    ]
+    return RawSignalBundle(
+        symbol="BTC",
+        klines=klines,
+        ticker={"last_price": 50000.0, "volume": 10000.0, "price_change_pct": 1.2},
+        open_interest={},
+        funding=None,
+        source_meta={"mode": "live_partial", "provider": "binance_public"},
+    )
 
 
 def _full_bundle() -> RawSignalBundle:
     bundle = _bundle()
     bundle.open_interest = {"open_interest": 200.0, "mark_price": 50000.0}
     bundle.funding = {"last_funding_rate": 0.0001}
-    bundle.source_meta = {"mode": "live", "provider": "binance_public", "sources": {"ticker": "binance_futures", "klines": "binance_futures", "open_interest": "binance_futures", "funding": "binance_futures"}}
+    bundle.source_meta = {
+        "mode": "live",
+        "provider": "binance_public",
+        "sources": {
+            "ticker": "binance_futures",
+            "klines": "binance_futures",
+            "open_interest": "binance_futures",
+            "funding": "binance_futures",
+        },
+    }
     return bundle
 
 
@@ -40,7 +66,7 @@ def test_partial_three_of_five_is_confidence_gated() -> None:
     composite = compute_composite(_bundle())
     assert composite.coverage == 0.6
     assert composite.confidence < 0.4
-    assert composite.recommendation is None
+    assert composite.recommendation == "insufficient_evidence"
     assert composite.actionability == "insufficient_evidence"
 
 
