@@ -13,7 +13,22 @@ def _build_endpoints(settings) -> list[dict]:
         {
             "method": "GET",
             "path": "/api/v1/signal/{token}",
-            "description": "Live composite signal for a token (Binance real data)",
+            "description": "Live composite signal with explicit provenance and confidence gating",
+        },
+        {
+            "method": "GET",
+            "path": "/api/v1/decision/{token}",
+            "description": "Evidence-bound Decision Packet for agent consumption",
+        },
+        {
+            "method": "GET",
+            "path": "/api/v1/decision/{token}/delta",
+            "description": "Material-change delta vs the previous observed packet",
+        },
+        {
+            "method": "GET",
+            "path": "/api/v1/validation/{token}",
+            "description": "Historical calibration of the price-derived signal subset",
         },
         {
             "method": "GET",
@@ -52,9 +67,7 @@ def _build_endpoints(settings) -> list[dict]:
 
 def _settings_for(request: Request) -> Settings:
     state_settings = getattr(request.app.state, "settings", None)
-    if state_settings is not None:
-        return state_settings
-    return get_settings()
+    return state_settings if state_settings is not None else get_settings()
 
 
 @router.get("/playground/endpoints")

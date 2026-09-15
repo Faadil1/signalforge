@@ -21,6 +21,15 @@ export type SignalOk = {
   available_signals: number;
   total_signals: number;
   coverage: number;
+  actionability: "actionable" | "observe" | "insufficient_evidence";
+  execution_authorized: false;
+  data_mode: "live" | "live_partial" | "mock" | "historical_proxy" | "unknown";
+  source_meta: {
+    mode?: string;
+    provider?: string;
+    sources?: Record<string, string>;
+    observed_at?: string;
+  };
   sub_signals: SubSignal[];
 };
 
@@ -32,7 +41,6 @@ export type SignalError = {
 
 export type SignalResponse = SignalOk | SignalError;
 export type SignalCard = SignalOk | SignalError;
-
 export type SignalsBatch = { signals: SignalCard[]; count: number };
 export type MarketCards = { market_cards: SignalCard[] };
 
@@ -85,7 +93,7 @@ export async function fetchTickers(): Promise<Ticker[]> {
 export async function fetchTicker(token: string): Promise<Ticker | null> {
   const res = await fetch(`${API_BASE}/market/tickers/${encodeURIComponent(token)}`);
   if (!res.ok) return null;
-  const data = await safeJson<Ticker>(res, {
+  return safeJson<Ticker>(res, {
     token,
     symbol: `${token}USDT`,
     price: 0,
@@ -97,33 +105,22 @@ export async function fetchTicker(token: string): Promise<Ticker | null> {
     source: "",
     timestamp: "",
   });
-  return data;
 }
 
 export function isSignalOk(signal: SignalResponse | SignalCard): signal is SignalOk {
   return signal.ok === true;
 }
 
-/**
- * Strip markdown/LLM fences (```json ... ```, leading prose) before parsing JSON.
- * Returns the cleaned string or null if nothing parseable remains.
- */
 export function extractJson(text: string): string | null {
   const trimmed = (text || "").trim();
   if (!trimmed) return null;
-  // Extract the first {...} or [...] block, ignoring ```json fences and prose.
   const braceMatch = trimmed.match(/\{[\s\S]*\}/);
   const bracketMatch = trimmed.match(/\[[\s\S]*\]/);
   const candidate = braceMatch ? braceMatch[0] : bracketMatch ? bracketMatch[0] : null;
   if (!candidate) return null;
-  // Strip any trailing ``` fence tokens that slipped inside.
   return candidate.replace(/```/g, "").trim();
 }
 
-/**
- * Safe JSON parser with try/catch. If `text` is an object (e.g. already parsed),
- * it is returned as-is. Returns `fallback` if parsing completely fails.
- */
 export function safeParseJson<T>(text: unknown, fallback: T): T {
   if (text && typeof text === "object") return text as T;
   if (typeof text !== "string" || !text.trim()) return fallback;
@@ -142,10 +139,6 @@ export function safeParseJson<T>(text: unknown, fallback: T): T {
   }
 }
 
-/**
- * Read a fetch Response body safely. Handles non-JSON bodies, empty bodies,
- * and markdown-fenced LLM responses. Returns `fallback` on any failure.
- */
 export async function safeJson<T>(res: Response, fallback: T): Promise<T> {
   try {
     const text = await res.text();

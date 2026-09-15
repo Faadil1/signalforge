@@ -21,6 +21,14 @@ const nextConfig = {
         source: "/api/:path*",
         destination: `${rewriteTarget}/api/:path*`,
       },
+      {
+        source: "/health",
+        destination: `${rewriteTarget}/health`,
+      },
+      {
+        source: "/.well-known/xagent-verification.json",
+        destination: `${rewriteTarget}/.well-known/xagent-verification.json`,
+      },
     ];
   },
 };

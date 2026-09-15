@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -35,6 +35,10 @@ class SignalOk(BaseModel):
     available_signals: int
     total_signals: int
     coverage: float
+    actionability: str
+    execution_authorized: bool
+    data_mode: str
+    source_meta: dict[str, Any]
     sub_signals: list[SubSignalOut]
 
 
@@ -48,6 +52,8 @@ class SignalCard(BaseModel):
     score: float | None = None
     confidence: float | None = None
     recommendation: str | None = None
+    actionability: str | None = None
+    data_mode: str | None = None
     error: ErrorDetail | None = None
 
 

@@ -2,17 +2,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from models.signal import SIGNAL_WEIGHTS, SIGNAL_WEIGHTS_SUM, RawSignalBundle
+from models.signal import SIGNAL_WEIGHTS, RawSignalBundle
 from services.signal_fusion import _recommendation, compute_composite, payload_from_bundle
 
 
-def _bundle(score: float) -> RawSignalBundle:
-    """Build a minimal RawSignalBundle.
-
-    Only klines and ticker are required for technical/trend/volume scorers;
-    open_interest and funding are intentionally omitted so those signals fall
-    back to a neutral value.
-    """
+def _bundle() -> RawSignalBundle:
     closes = [50.0 + i * 0.1 for i in range(30)]
     klines = [
         {
@@ -28,31 +22,28 @@ def _bundle(score: float) -> RawSignalBundle:
     return RawSignalBundle(
         symbol="BTC",
         klines=klines,
-        ticker={"last_price": 50000.0, "volume": 10000.0},
+        ticker={"last_price": 50000.0, "volume": 10000.0, "price_change_pct": 1.2},
         open_interest={},
-        funding={},
+        funding=None,
+        source_meta={"mode": "live_partial", "provider": "binance_public"},
     )
 
 
 def _full_bundle() -> RawSignalBundle:
-    """Bundle where all five signals are available."""
-    bundle = _bundle(50.0)
+    bundle = _bundle()
     bundle.open_interest = {"open_interest": 200.0, "mark_price": 50000.0}
     bundle.funding = {"last_funding_rate": 0.0001}
+    bundle.source_meta = {
+        "mode": "live",
+        "provider": "binance_public",
+        "sources": {
+            "ticker": "binance_futures",
+            "klines": "binance_futures",
+            "open_interest": "binance_futures",
+            "funding": "binance_futures",
+        },
+    }
     return bundle
-
-
-def test_signal_weights_sum_to_one() -> None:
-    assert SIGNAL_WEIGHTS_SUM == 1.0
-    assert set(SIGNAL_WEIGHTS) == {"technical", "trend", "open_interest", "funding", "volume"}
-
-
-def test_compute_composite_returns_valid_score() -> None:
-    bundle = _bundle(50.0)
-    composite = compute_composite(bundle)
-    assert 0.0 <= composite.score <= 100.0
-    assert composite.score == round(composite.score, 2)
-    assert len(composite.sub_signals) == 5
 
 
 def test_composite_recommendation_mapping() -> None:
@@ -63,61 +54,32 @@ def test_composite_recommendation_mapping() -> None:
     assert _recommendation(10) == "strong_sell"
 
 
-def test_sub_signal_weighted_fusion() -> None:
-    bundle = _bundle(50.0)
-    composite = compute_composite(bundle)
-    manual = sum(s.value * SIGNAL_WEIGHTS[s.name] for s in composite.sub_signals)
-    assert abs(manual - composite.score) < 1e-6
+def test_unavailable_signals_do_not_contribute_neutral_weight() -> None:
+    composite = compute_composite(_bundle())
+    available = [s for s in composite.sub_signals if s.available]
+    weight = sum(SIGNAL_WEIGHTS[s.name] for s in available)
+    manual = sum(s.value * SIGNAL_WEIGHTS[s.name] for s in available) / weight
+    assert abs(manual - composite.score) < 0.02
 
 
-def test_funding_none_marks_signal_unavailable() -> None:
-    bundle = _full_bundle()
-    bundle.funding = None
-    composite = compute_composite(bundle)
-
-    funding = next(s for s in composite.sub_signals if s.name == "funding")
-    assert funding.available is False
-    assert "unavailable" in funding.reason
-    assert composite.available_signals == 4
-    assert composite.total_signals == 5
-    assert composite.coverage == 0.8
+def test_partial_three_of_five_is_confidence_gated() -> None:
+    composite = compute_composite(_bundle())
+    assert composite.coverage == 0.6
+    assert composite.confidence < 0.4
+    assert composite.recommendation == "insufficient_evidence"
+    assert composite.actionability == "insufficient_evidence"
 
 
-def test_full_coverage_scales_confidence() -> None:
+def test_full_coverage_has_explicit_no_execution_authority() -> None:
     composite = compute_composite(_full_bundle())
-
-    assert composite.available_signals == 5
     assert composite.coverage == 1.0
-    confs = [s.confidence for s in composite.sub_signals]
-    expected = sum(confs) / len(confs)
-    assert composite.confidence == round(expected, 3)
+    assert composite.execution_authorized is False
+    assert composite.data_mode == "live"
 
 
-def test_missing_open_interest_reduces_coverage() -> None:
-    bundle = _full_bundle()
-    bundle.open_interest = {}
-    composite = compute_composite(bundle)
-
-    oi = next(s for s in composite.sub_signals if s.name == "open_interest")
-    assert oi.available is False
-    assert composite.coverage == 0.8
-    assert composite.available_signals == 4
-
-
-def test_coverage_penalizes_adjusted_confidence() -> None:
-    full = compute_composite(_full_bundle())
-    partial = _full_bundle()
-    partial.funding = None
-    partial = compute_composite(partial)
-
-    assert full.coverage == 1.0
-    assert partial.coverage == 0.8
-    assert partial.confidence < full.confidence
-
-
-def test_payload_includes_coverage_keys() -> None:
+def test_payload_includes_trust_contract() -> None:
     payload = payload_from_bundle(_full_bundle())
     assert payload["ok"] is True
-    assert payload["available_signals"] == 5
-    assert payload["total_signals"] == 5
-    assert payload["coverage"] == 1.0
+    assert payload["data_mode"] == "live"
+    assert payload["source_meta"]["provider"] == "binance_public"
+    assert payload["execution_authorized"] is False

@@ -13,10 +13,8 @@ logger = logging.getLogger(__name__)
 
 SPOT_BASE = "https://api.binance.com"
 FUTURES_BASE = "https://fapi.binance.com"
-
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
-# Rough per-token reference prices for realistic fallback data.
 _MOCK_PRICES = {
     "BTC": 67000.0,
     "ETH": 3400.0,
@@ -36,7 +34,6 @@ class BinancePublicError(RuntimeError):
 
 
 def _safe_float(value: float | int | str | None, default: float = 0.0) -> float:
-    """Coerce any value to a finite float, returning default for NaN/inf/None."""
     if value is None:
         return default
     try:
@@ -49,32 +46,37 @@ def _safe_float(value: float | int | str | None, default: float = 0.0) -> float:
 
 
 class BinancePublicClient:
-    """Client for Binance's free, key-less public market data endpoints.
-
-    Sources (all real, curl-verifiable):
-      - futures klines          GET /fapi/v1/klines
-      - future open interest    GET /fapi/v1/openInterest
-      - funding / mark price    GET /fapi/v1/premiumIndex
-      - futures 24hr ticker     GET /fapi/v1/ticker/24hr
-      - spot 24hr ticker        GET /api/v3/ticker/24hr
-    """
+    """Keyless Binance client with explicit provenance and fail-closed production mode."""
 
     def __init__(
-        self,
-        timeout_s: float = 10.0,
-        max_retries: int = 2,
-        max_concurrency: int = 5,
+        self, timeout_s: float = 10.0, max_retries: int = 2, max_concurrency: int = 5, allow_mock_fallback: bool = False
     ) -> None:
         self._timeout_s = timeout_s
         self._max_retries = max_retries
         self._max_concurrency = max_concurrency
+        self._allow_mock_fallback = allow_mock_fallback
         self.client: httpx.AsyncClient | None = None
         self._semaphore: asyncio.Semaphore | None = None
 
-    async def configure(self) -> None:
+    async def configure(
+        self,
+        *,
+        timeout_s: float | None = None,
+        max_retries: int | None = None,
+        max_concurrency: int | None = None,
+        allow_mock_fallback: bool | None = None,
+    ) -> None:
+        if timeout_s is not None:
+            self._timeout_s = timeout_s
+        if max_retries is not None:
+            self._max_retries = max_retries
+        if max_concurrency is not None:
+            self._max_concurrency = max_concurrency
+        if allow_mock_fallback is not None:
+            self._allow_mock_fallback = allow_mock_fallback
         if self.client is None:
             self.client = httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=5.0, read=self._timeout_s, write=5.0, pool=5.0),
+                timeout=httpx.Timeout(connect=5.0, read=self._timeout_s, write=5.0, pool=5.0)
             )
         self._semaphore = asyncio.Semaphore(self._max_concurrency)
 
@@ -89,16 +91,9 @@ class BinancePublicClient:
         last_exc: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                resp = await asyncio.wait_for(
-                    self.client.get(f"{base}{path}", params=params),
-                    timeout=self._timeout_s,
-                )
+                resp = await asyncio.wait_for(self.client.get(f"{base}{path}", params=params), timeout=self._timeout_s)
                 if resp.status_code in RETRYABLE_STATUS and attempt < self._max_retries:
-                    wait = min(0.25 * (2**attempt), 2.0)
-                    logger.warning(
-                        "Binance %s HTTP %d (attempt %d), retrying in %.1fs", path, resp.status_code, attempt + 1, wait
-                    )
-                    await asyncio.sleep(wait)
+                    await asyncio.sleep(min(0.25 * (2**attempt), 2.0))
                     continue
                 if resp.status_code != 200:
                     raise BinancePublicError(f"Binance {path} -> HTTP {resp.status_code}")
@@ -109,35 +104,24 @@ class BinancePublicClient:
             except (httpx.TimeoutException, httpx.ConnectError, TimeoutError) as exc:
                 last_exc = exc
                 if attempt < self._max_retries:
-                    wait = min(0.25 * (2**attempt), 2.0)
-                    logger.warning(
-                        "Binance %s transport error (attempt %d): %s, retrying in %.1fs", path, attempt + 1, exc, wait
-                    )
-                    await asyncio.sleep(wait)
+                    await asyncio.sleep(min(0.25 * (2**attempt), 2.0))
                     continue
                 raise BinancePublicError(f"Binance {path} transport error: {exc}") from exc
         raise BinancePublicError(f"Binance {path} failed after retries: {last_exc}")
 
     async def get_klines(self, symbol: str, interval: str = "1d", limit: int = 200) -> list[dict]:
-        try:
-            raw = await self._get(
-                FUTURES_BASE,
-                "/fapi/v1/klines",
-                params={"symbol": f"{symbol}USDT", "interval": interval, "limit": limit},
-            )
-        except BinancePublicError as exc:
-            logger.warning("get_klines fallback to mock for %s: %s", symbol, exc)
-            return self.generate_mock_klines(symbol, interval=interval, limit=limit)
+        raw = await self._get(
+            FUTURES_BASE, "/fapi/v1/klines", params={"symbol": f"{symbol}USDT", "interval": interval, "limit": limit}
+        )
         out = []
         for k in raw:
             try:
                 ts = int(k[0]) / 1000
             except (TypeError, ValueError, IndexError):
                 continue
-            dt = datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d")
             out.append(
                 {
-                    "date": dt,
+                    "date": datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d"),
                     "open": _safe_float(k[1] if len(k) > 1 else None),
                     "high": _safe_float(k[2] if len(k) > 2 else None),
                     "low": _safe_float(k[3] if len(k) > 3 else None),
@@ -146,8 +130,7 @@ class BinancePublicClient:
                 }
             )
         if not out:
-            logger.warning("get_klines returned no rows for %s — using mock", symbol)
-            return self.generate_mock_klines(symbol, interval=interval, limit=limit)
+            raise BinancePublicError(f"Binance klines returned no usable rows for {symbol}")
         return out
 
     async def get_open_interest(self, symbol: str) -> dict:
@@ -195,28 +178,19 @@ class BinancePublicClient:
         }
 
     async def get_ticker(self, symbol: str) -> dict:
-        """24h ticker directly from Binance, preferring futures and falling back to spot.
-
-        Returns an object tagged with `source` so consumers can say where the
-        price came from. Raises BinancePublicError if every source fails.
-        """
         try:
-            data = await self.get_futures_ticker(symbol)
-            return {**data, "source": "binance_futures"}
+            return {**(await self.get_futures_ticker(symbol)), "source": "binance_futures"}
         except BinancePublicError as futures_exc:
             try:
-                data = await self._get_spot_ticker(symbol)
-                return {**data, "source": "binance_spot"}
+                return {**(await self._get_spot_ticker(symbol)), "source": "binance_spot"}
             except Exception:
                 raise BinancePublicError(f"All ticker sources failed for {symbol}") from futures_exc
 
     def _mock_price(self, symbol: str) -> float:
         base = _MOCK_PRICES.get(symbol.upper(), 10.0)
-        jitter = 1.0 + (random.uniform(-0.02, 0.02))
-        return round(base * jitter, 6)
+        return round(base * (1.0 + random.uniform(-0.02, 0.02)), 6)
 
     def generate_mock_klines(self, symbol: str, interval: str = "1d", limit: int = 120) -> list[dict]:
-        """Deterministic-ish realistic OHLCV fallback data seeded from a per-token price."""
         price = self._mock_price(symbol)
         now = datetime.now(UTC)
         out: list[dict] = []
@@ -227,7 +201,6 @@ class BinancePublicClient:
             open_price = price * (1.0 + random.uniform(-0.01, 0.01))
             high = max(open_price, price) * (1.0 + random.uniform(0.0, 0.02))
             low = min(open_price, price) * (1.0 - random.uniform(0.0, 0.02))
-            volume = random.uniform(5000, 80000)
             out.append(
                 {
                     "date": ts.strftime("%Y-%m-%d"),
@@ -235,7 +208,7 @@ class BinancePublicClient:
                     "high": round(high, 6),
                     "low": round(low, 6),
                     "close": round(price, 6),
-                    "volume": round(volume, 2),
+                    "volume": round(random.uniform(5000, 80000), 2),
                 }
             )
         return out
@@ -249,8 +222,8 @@ class BinancePublicClient:
             "price_change_pct": round(change * 100, 2),
             "volume": round(random.uniform(10000, 200000), 2),
             "quote_volume": round(random.uniform(1e8, 1e10), 2),
-            "high": round(price * (1.0 + abs(random.uniform(0.0, 0.03))), 6),
-            "low": round(price * (1.0 - abs(random.uniform(0.0, 0.03))), 6),
+            "high": round(price * 1.02, 6),
+            "low": round(price * 0.98, 6),
             "open": round(price * (1.0 - change), 6),
         }
 
@@ -271,93 +244,96 @@ class BinancePublicClient:
         }
 
     async def fetch_signal_sources(self, symbol: str) -> dict[str, Any]:
-        """Fetch all real signal sources concurrently with bounded parallelism.
-
-        Returns partial results on partial failure. If the entire data source is
-        unreachable, returns a locally mocked, realistic fallback dataset so the
-        application can keep functioning during live demos. Returns
-        {symbol, klines, ticker, open_interest, funding} where funding may be
-        None if unavailable. Self-configures lazily when used outside a FastAPI
-        lifespan.
-        """
         if self._semaphore is None or self.client is None:
             await self.configure()
+        provenance: dict[str, str] = {}
 
         async def _bounded(coro):
             async with self._semaphore:
                 return await coro
 
-        futures_ticker_exc: Exception | None = None
-        klines_result = None
-        oi_result = None
-        funding_result = None
-        spot_ticker_result = None
-
         async def _fetch_ticker():
-            nonlocal futures_ticker_exc, spot_ticker_result
             try:
-                return await _bounded(self.get_futures_ticker(symbol))
-            except BinancePublicError as exc:
-                futures_ticker_exc = exc
+                data = await _bounded(self.get_futures_ticker(symbol))
+                provenance["ticker"] = "binance_futures"
+                return {**data, "source": "binance_futures"}
+            except BinancePublicError as futures_exc:
                 try:
-                    spot_ticker_result = await _bounded(self._get_spot_ticker(symbol))
-                    return spot_ticker_result
+                    data = await _bounded(self._get_spot_ticker(symbol))
+                    provenance["ticker"] = "binance_spot"
+                    return {**data, "source": "binance_spot"}
                 except Exception:
-                    raise BinancePublicError(f"All ticker sources failed for {symbol}") from exc
+                    if self._allow_mock_fallback:
+                        provenance["ticker"] = "mock"
+                        return self.generate_mock_ticker(symbol)
+                    provenance["ticker"] = "unavailable"
+                    raise BinancePublicError(f"All ticker sources failed for {symbol}") from futures_exc
 
         async def _fetch_klines():
-            nonlocal klines_result
             try:
-                klines_result = await _bounded(self.get_klines(symbol, interval="1d", limit=120))
-                return klines_result
+                data = await _bounded(self.get_klines(symbol, interval="1d", limit=120))
+                provenance["klines"] = "binance_futures"
+                return data
             except BinancePublicError:
-                klines_result = self.generate_mock_klines(symbol, interval="1d", limit=90)
-                logger.warning("Klines unavailable for %s — using mock data", symbol)
-                return klines_result
+                if self._allow_mock_fallback:
+                    provenance["klines"] = "mock"
+                    return self.generate_mock_klines(symbol, interval="1d", limit=120)
+                provenance["klines"] = "unavailable"
+                return []
 
         async def _fetch_oi():
-            nonlocal oi_result
             try:
-                oi_result = await _bounded(self.get_open_interest(symbol))
-                return oi_result
+                data = await _bounded(self.get_open_interest(symbol))
+                provenance["open_interest"] = "binance_futures"
+                return data
             except BinancePublicError:
-                oi_result = self.generate_mock_open_interest(symbol)
-                logger.warning("Open interest unavailable for %s — using mock data", symbol)
-                return oi_result
+                if self._allow_mock_fallback:
+                    provenance["open_interest"] = "mock"
+                    return self.generate_mock_open_interest(symbol)
+                provenance["open_interest"] = "unavailable"
+                return {}
 
         async def _fetch_funding():
-            nonlocal funding_result
             try:
-                funding_result = await _bounded(self.get_funding(symbol))
-                return funding_result
-            except BinancePublicError as exc:
-                logger.warning("Funding unavailable for %s: %s - using mock data", symbol, exc)
-                funding_result = self.generate_mock_funding(symbol)
-                return funding_result
+                data = await _bounded(self.get_funding(symbol))
+                provenance["funding"] = "binance_futures"
+                return data
+            except BinancePublicError:
+                if self._allow_mock_fallback:
+                    provenance["funding"] = "mock"
+                    return self.generate_mock_funding(symbol)
+                provenance["funding"] = "unavailable"
+                return None
 
         results = await asyncio.gather(
-            _fetch_ticker(),
-            _fetch_klines(),
-            _fetch_oi(),
-            _fetch_funding(),
-            return_exceptions=True,
+            _fetch_ticker(), _fetch_klines(), _fetch_oi(), _fetch_funding(), return_exceptions=True
         )
-
-        ticker_data = results[0] if not isinstance(results[0], Exception) else None
+        ticker_data = results[0] if not isinstance(results[0], Exception) else {}
         klines_data = results[1] if not isinstance(results[1], Exception) else []
         oi_data = results[2] if not isinstance(results[2], Exception) else {}
         funding_data = results[3] if not isinstance(results[3], Exception) else None
-
-        if ticker_data is None:
-            logger.warning("Ticker unavailable for %s — using mock ticker", symbol)
-            ticker_data = self.generate_mock_ticker(symbol)
-
+        if not ticker_data and not klines_data and not oi_data and funding_data is None:
+            raise BinancePublicError(f"All signal sources unavailable for {symbol}")
+        sources = list(provenance.values())
+        mode = (
+            "mock"
+            if any(s == "mock" for s in sources)
+            else "live_partial"
+            if any(s == "unavailable" for s in sources)
+            else "live"
+        )
         return {
             "symbol": symbol.upper(),
             "klines": klines_data if isinstance(klines_data, list) else [],
-            "ticker": ticker_data,
+            "ticker": ticker_data if isinstance(ticker_data, dict) else {},
             "open_interest": oi_data if isinstance(oi_data, dict) else {},
             "funding": funding_data,
+            "source_meta": {
+                "mode": mode,
+                "provider": "binance_public",
+                "sources": provenance,
+                "observed_at": datetime.now(UTC).isoformat(),
+            },
         }
 
 
