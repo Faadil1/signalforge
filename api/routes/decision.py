@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from services.decision_service import compare_with_live_decision, get_decision_packet, get_signal_delta
 from services.errors import INVALID_TOKEN, error_token_payload
@@ -40,7 +40,7 @@ async def decision_delta(token: str):
 
 
 @router.post("/decision/{token}/compare", dependencies=[Depends(_decision_rate_limited)])
-async def decision_compare(token: str, baseline: dict = Body(...)):
+async def decision_compare(token: str, baseline: dict):
     """Compare a caller-supplied prior Decision Packet with a fresh live packet.
 
     This endpoint is stateless and reproducible across Worker isolates. It is the
@@ -49,5 +49,6 @@ async def decision_compare(token: str, baseline: dict = Body(...)):
     result = await compare_with_live_decision(_symbol_or_422(token), baseline)
     if not result.get("ok"):
         code = result.get("error", {}).get("code")
-        raise HTTPException(status_code=422 if code in {"INVALID_BASELINE", "TOKEN_MISMATCH"} else 502, detail=result)
+        status_code = 422 if code in {"INVALID_BASELINE", "TOKEN_MISMATCH"} else 502
+        raise HTTPException(status_code=status_code, detail=result)
     return result
