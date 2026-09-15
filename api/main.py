@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routes import alerts, decision, playground, signals, strategies, tickers, validation
+from routes import alerts, decision, evidence, playground, signals, strategies, tickers, validation
 from services.binance_client import binance
 from services.config import Settings, get_settings
 from services.errors import INTERNAL_ERROR
@@ -25,7 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="SignalForge",
         description="Evidence-bound crypto market decision intelligence from live Binance market data",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -78,6 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(playground.router, prefix="/api/v1")
     app.include_router(decision.router, prefix="/api/v1")
     app.include_router(validation.router, prefix="/api/v1")
+    app.include_router(evidence.router, prefix="/api/v1")
     if settings.enable_backtests:
         app.include_router(strategies.router, prefix="/api/v1")
     if settings.enable_alerts:
@@ -92,6 +93,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "commit": settings.git_commit,
             "project_slug": settings.project_slug,
             "mock_fallback_enabled": settings.allow_mock_fallback,
+            "evidence_policy": "freshness_gated",
+            "negative_path": "/api/v1/evidence/negative-path",
         }
 
     @app.get("/.well-known/xagent-verification.json")
