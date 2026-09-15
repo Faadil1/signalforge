@@ -4,6 +4,7 @@ import hashlib
 import json
 from copy import deepcopy
 
+from services.evidence_audit import build_admission_ledger
 from services.evidence_intelligence import (
     build_decision_receipt,
     build_decision_stress_test,
@@ -183,6 +184,7 @@ async def get_decision_packet(token: str) -> dict:
             "primary_provider": source_meta.get("primary_provider"),
             "fallback_provider": source_meta.get("fallback_provider"),
         },
+        "evidence_admission_ledger": build_admission_ledger(payload),
         "evidence_lineage": build_lineage_analysis(payload),
         "evidence_lease": build_evidence_lease(payload),
         "recovery_requirements": build_recovery_requirements(payload),
