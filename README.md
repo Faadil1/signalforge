@@ -4,10 +4,10 @@
 
   # SignalForge
 
-  **Evidence-bound market intelligence for humans and agents.**
+  **A pre-action evidence gate for market agents.**
 
-  Five complementary market evidence channels, explicit provenance, freshness gating,
-  confidence gating, and agent-ready Decision Packets built on live Binance public data.
+  SignalForge verifies whether market evidence is usable enough for a bounded research handoff —
+  and returns a machine-readable refusal when evidence quality is not sufficient.
 </div>
 
 <div align="center">
@@ -25,9 +25,13 @@
 
 ## What SignalForge does
 
-SignalForge turns public crypto-market data into an explainable **Composite Signal Score (0–100)** and, more importantly, an **evidence-bound Decision Packet** for agents.
+Most market tools try to produce another score, forecast, or BUY/SELL/HOLD answer. SignalForge focuses on the step immediately before that answer is trusted by an agent:
 
-The system fuses five complementary evidence channels:
+> **Is the underlying evidence fresh, consistent, sufficiently covered and safe to hand off — or should the agent refuse and refresh evidence?**
+
+SignalForge turns public crypto-market data into an explainable **Composite Signal Score (0–100)** and, more importantly, an **evidence-bound Decision Packet** with provenance, quality state, actionability, invalidation conditions and an explicit authority boundary.
+
+The system can fuse five complementary evidence channels:
 
 | Evidence channel | Weight | What it measures |
 |---|---:|---|
@@ -37,7 +41,9 @@ The system fuses five complementary evidence channels:
 | Open Interest | 15% | Positioning intensity contextualized by price direction |
 | Volume | 15% | Directional volume surge vs. recent average |
 
-Missing or stale evidence is **not** silently converted into a neutral score. Only usable evidence contributes to the fusion denominator, while coverage and confidence determine whether a directional recommendation is allowed to exist at all.
+Missing or degraded evidence is **not** silently converted into a healthy neutral score. Only usable evidence contributes to the fusion denominator, while coverage and confidence determine whether a directional recommendation is allowed to exist at all.
+
+Production uses a **multi-provider public market-data path**. Binance Futures and Spot are attempted where available; price-derived evidence can fail over to Coinbase Exchange with explicit provenance. Funding and open-interest evidence remain unavailable when their supported live source is unavailable rather than being synthesized.
 
 SignalForge is built for the **X-Agent AI MCP Hackathon 2026 — Open Innovation track**.
 
@@ -68,7 +74,8 @@ AVAILABLE != FRESH != CONSISTENT != ACTIONABLE
 
 Production mode is deliberately fail-closed.
 
-- Binance market evidence is fetched from public spot/futures endpoints.
+- Public market evidence is collected through a multi-provider adapter with explicit per-source provenance.
+- Binance Futures and Spot are preferred where reachable; Coinbase Exchange is an independent public fallback for price-derived ticker/klines only.
 - Synthetic fallback is disabled by default.
 - `ALLOW_MOCK_FALLBACK=true` exists only for an explicitly labelled demo mode.
 - Any synthetic result is marked `data_mode=mock`.
@@ -86,11 +93,25 @@ Freshness states are explicit: `fresh`, `stale`, `unavailable`, `unknown`, `inco
 
 ## Agent-native API
 
+### Capability contract
+
+```http
+GET /api/v1/capabilities
+```
+
+One machine-readable response describes SignalForge's agent job, tool contracts, state model, contract/policy versions, side-effect boundary, safe-failure semantics and execution-authority boundary.
+
+SignalForge currently exposes a REST capability surface and tool-ready contracts. It does **not** claim an MCP transport is included in this build.
+
 ### Decision Packet
 
 ```http
 GET /api/v1/decision/BTC
 ```
+
+Decision contract version: `1.1`
+
+Policy version: `evidence-gate-2026-09`
 
 Returns:
 
@@ -103,23 +124,37 @@ Returns:
 - provider + per-source provenance
 - source freshness / quality metadata
 - invalidation conditions
+- `agent_next_action`
+- authority boundary
 - snapshot identifier
 - `execution_authorized: false`
 
-### Signal Delta
+`agent_next_action` is intentionally bounded:
+
+- `REFRESH_EVIDENCE` when evidence is insufficient;
+- `OBSERVE_ONLY` for a usable hold-band state;
+- `RESEARCH_HANDOFF` when the evidence gate passes.
+
+None of these states authorizes execution.
+
+### Stateless Decision Compare — preferred durable delta path
+
+```http
+POST /api/v1/decision/BTC/compare
+Content-Type: application/json
+
+<prior SignalForge Decision Packet>
+```
+
+SignalForge fetches a fresh live Decision Packet and compares it with the caller-supplied baseline. This path is stateless and reproducible across serverless Worker isolates.
+
+### Process-local Signal Delta — convenience only
 
 ```http
 GET /api/v1/decision/BTC/delta
 ```
 
-Establishes a baseline and then reports material changes in:
-
-- score
-- evidence drivers
-- stance
-- actionability
-
-The current hackathon implementation stores the comparison baseline in process memory and exposes that limitation explicitly.
+This endpoint establishes a baseline in process memory and reports material changes in score, evidence drivers, stance and actionability. It is explicitly labelled non-durable and should not be used when cross-isolate persistence matters.
 
 ### Validation Lab
 
@@ -127,7 +162,7 @@ The current hackathon implementation stores the comparison baseline in process m
 GET /api/v1/validation/BTC?period_days=120&horizon_days=3
 ```
 
-The first calibration pass evaluates the **price-derived 3/5 subset** (`technical`, `trend`, `volume`) against future returns using real Binance historical klines.
+The calibration pass evaluates the **price-derived 3/5 subset** (`technical`, `trend`, `volume`) against future returns using the live runtime's historical-kline provider path. Provider provenance is returned explicitly; the currently verified Cloudflare runtime uses Coinbase Exchange when Binance market endpoints are unavailable from that environment.
 
 It intentionally returns:
 
@@ -155,6 +190,23 @@ This endpoint combines two things without confusing them:
 
 The controlled case must resolve to `insufficient_evidence` with `execution_authorized: false`. It is explicitly labelled `not_a_historical_replay: true`.
 
+### Evidence Resilience Benchmark
+
+```http
+GET /api/v1/evidence/resilience-benchmark
+```
+
+A deterministic policy-conformance suite checks whether SignalForge preserves the expected authority/refusal behavior across controlled evidence states:
+
+- full usable evidence context;
+- stale open interest + unavailable funding;
+- inconsistent ticker removed before fusion;
+- mock price evidence removed before fusion.
+
+The benchmark reports a `policy_conformance_rate`. It measures **policy behavior**, not trading profitability, predictive accuracy or historical replay performance.
+
+Agent integration details: [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md).
+
 ---
 
 ## Judge proof surface
@@ -165,7 +217,7 @@ Open:
 /judge
 ```
 
-The page calls the public service directly and shows raw responses for:
+The current judge page calls the public service directly and shows raw responses for the six deployment-proof gates:
 
 1. `/health`
 2. `/.well-known/xagent-verification.json`
@@ -173,6 +225,8 @@ The page calls the public service directly and shows raw responses for:
 4. `/api/v1/decision/BTC/delta`
 5. `/api/v1/validation/BTC?period_days=120&horizon_days=3`
 6. `/api/v1/evidence/negative-path`
+
+The capability contract and resilience benchmark are additional agent/productization probes and can be reviewed directly through their public endpoints after an exact-commit deployment containing this version.
 
 This keeps judge-facing evidence separate from marketing copy and makes both the positive path and refusal path independently callable.
 
@@ -194,7 +248,11 @@ The public deployment must expose the exact reviewed Git commit.
   "project_slug": "signalforge",
   "mock_fallback_enabled": false,
   "evidence_policy": "freshness_gated",
-  "negative_path": "/api/v1/evidence/negative-path"
+  "decision_contract_version": "1.1",
+  "policy_version": "evidence-gate-2026-09",
+  "capabilities": "/api/v1/capabilities",
+  "negative_path": "/api/v1/evidence/negative-path",
+  "resilience_benchmark": "/api/v1/evidence/resilience-benchmark"
 }
 ```
 
@@ -210,7 +268,7 @@ The public deployment must expose the exact reviewed Git commit.
 
 The commit is read from `GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA`, or `CF_PAGES_COMMIT_SHA`. `/health` reports `degraded` when no valid 40-character commit binding is available.
 
-The Next.js frontend proxies `/api/*`, `/health`, and `/.well-known/xagent-verification.json` to the backend so the same public origin can satisfy the judge contract.
+The production Cloudflare Worker serves the static Next.js application and FastAPI proof/API surface from one public origin.
 
 ---
 
@@ -224,7 +282,7 @@ SignalForge includes three deterministic experimental strategies:
 | Mean Reversion | `mean_reversion` | RSI oversold/overbought |
 | Sentiment Flow | `sentiment_flow` | Trend structure + RSI positioning |
 
-Backtests use real Binance OHLCV klines. Transaction costs worsen both entry and exit prices, and trades are recorded on the actual next-candle execution date rather than the signal candle.
+Backtests consume historical OHLCV through the market-data client path. Transaction costs worsen both entry and exit prices, and trades are recorded on the actual next-candle execution date rather than the signal candle. Source provenance must not be generalized beyond what the runtime actually reports.
 
 A backtest is experimental evidence; it is **not** a guarantee of profitability.
 
@@ -238,14 +296,17 @@ curl "http://localhost:8000/api/v1/strategy/momentum/backtest?token=BTC&period=9
 
 | Method | Path | Purpose |
 |---|---|---|
+| GET | `/api/v1/capabilities` | Machine-readable agent capability / state / authority contract |
 | GET | `/api/v1/signal/{token}` | Composite signal + provenance + freshness/confidence gate |
 | GET | `/api/v1/signals` | Batch signals |
 | GET | `/api/v1/overview` | Market overview cards |
-| GET | `/api/v1/signal/{token}/history` | Binance OHLCV history |
-| GET | `/api/v1/decision/{token}` | Agent Decision Packet |
-| GET | `/api/v1/decision/{token}/delta` | Material-change detection |
-| GET | `/api/v1/validation/{token}` | Historical calibration lab |
+| GET | `/api/v1/signal/{token}/history` | Historical OHLCV through the active market-data provider path |
+| GET | `/api/v1/decision/{token}` | Versioned Agent Decision Packet |
+| POST | `/api/v1/decision/{token}/compare` | Stateless material-change comparison using caller-supplied baseline |
+| GET | `/api/v1/decision/{token}/delta` | Process-local material-change convenience endpoint |
+| GET | `/api/v1/validation/{token}` | Bounded historical calibration lab |
 | GET | `/api/v1/evidence/negative-path` | Real-failure-backed controlled refusal proof |
+| GET | `/api/v1/evidence/resilience-benchmark` | Deterministic evidence-policy conformance benchmark |
 | GET | `/api/v1/strategies` | Strategy catalog when enabled |
 | GET | `/api/v1/strategy/{id}/backtest` | Experimental strategy backtest when enabled |
 | GET | `/api/v1/playground/endpoints` | Capability catalog |
