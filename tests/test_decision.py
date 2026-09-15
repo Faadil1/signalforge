@@ -93,8 +93,22 @@ def test_stateless_compare_survives_process_memory_boundaries(monkeypatch):
     assert comparison["material_change"] is True
     assert comparison["score_delta"] == 10.0
     assert comparison["previous_snapshot_id"] == baseline["snapshot_id"]
+    assert comparison["baseline_contract_version"] == "1.1"
     assert comparison["persistence"] == "caller_supplied_baseline"
     assert comparison["execution_authorized"] is False
+
+
+def test_stateless_compare_accepts_legacy_unversioned_packet(monkeypatch):
+    async def fake(_token):
+        return _payload(70.0)
+
+    monkeypatch.setattr(decision_service, "get_signal_payload", fake)
+    baseline = asyncio.run(decision_service.get_decision_packet("BTC"))
+    baseline.pop("contract_version")
+
+    comparison = asyncio.run(decision_service.compare_with_live_decision("BTC", baseline))
+    assert comparison["ok"] is True
+    assert comparison["baseline_contract_version"] == "legacy_unversioned"
 
 
 def test_stateless_compare_rejects_mismatched_token(monkeypatch):
@@ -108,3 +122,29 @@ def test_stateless_compare_rejects_mismatched_token(monkeypatch):
     comparison = asyncio.run(decision_service.compare_with_live_decision("BTC", baseline))
     assert comparison["ok"] is False
     assert comparison["error"]["code"] == "TOKEN_MISMATCH"
+
+
+def test_stateless_compare_rejects_incompatible_contract(monkeypatch):
+    async def fake(_token):
+        return _payload(70.0)
+
+    monkeypatch.setattr(decision_service, "get_signal_payload", fake)
+    baseline = asyncio.run(decision_service.get_decision_packet("BTC"))
+    baseline["contract_version"] = "9.9"
+
+    comparison = asyncio.run(decision_service.compare_with_live_decision("BTC", baseline))
+    assert comparison["ok"] is False
+    assert comparison["error"]["code"] == "BASELINE_CONTRACT_VERSION_MISMATCH"
+
+
+def test_stateless_compare_rejects_malformed_evidence_without_500(monkeypatch):
+    async def fake(_token):
+        return _payload(70.0)
+
+    monkeypatch.setattr(decision_service, "get_signal_payload", fake)
+    baseline = asyncio.run(decision_service.get_decision_packet("BTC"))
+    baseline["evidence"]["supporting"] = {"not": "a list"}
+
+    comparison = asyncio.run(decision_service.compare_with_live_decision("BTC", baseline))
+    assert comparison["ok"] is False
+    assert comparison["error"]["code"] == "INVALID_BASELINE"
