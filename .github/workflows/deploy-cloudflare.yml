@@ -7,6 +7,8 @@ on:
         description: "Optional canonical URL to verify after deploy; leave blank to use the workers.dev URL printed by Cloudflare"
         required: false
         type: string
+  push:
+    branches: [cloudflare-runtime]
 
 permissions:
   contents: read
@@ -17,6 +19,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'deploy: cloudflare production'
     name: Deploy exact commit and verify runtime
     runs-on: ubuntu-latest
     steps:
