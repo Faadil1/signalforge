@@ -40,32 +40,44 @@ export function SignalCard({
   weight?: number;
   available?: boolean;
 }) {
-  const tone = available === false ? "unavailable" : signalTone(value);
+  const isUnavailable = available === false;
+  const tone = isUnavailable ? "unavailable" : signalTone(value);
   const title = name.replace(/_/g, " ");
+
   return (
-    <div className="card p-4">
+    <div className={cn("card p-4", isUnavailable && "border-dashed bg-surface-secondary/40")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-text">{title}</p>
-          {direction && (
+          {isUnavailable ? (
+            <p className="mt-0.5 text-xs font-medium text-text-subtle">Unavailable · excluded from fusion</p>
+          ) : direction ? (
             <p className={cn("mt-0.5 text-xs font-medium capitalize", TONE_TEXT[tone])}>{direction}</p>
-          )}
+          ) : null}
         </div>
         <div className={cn("font-mono text-lg font-bold tabular-nums", TONE_TEXT[tone])}>
-          {value != null ? value.toFixed(0) : "—"}
+          {isUnavailable ? "EXCLUDED" : value != null ? value.toFixed(0) : "—"}
         </div>
       </div>
 
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-secondary">
-        <div
-          className={cn("h-full rounded-full transition-all duration-300", TONE_BAR[tone])}
-          style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
-        />
-      </div>
+      {isUnavailable ? (
+        <div className="mt-3 flex items-center gap-2 text-[11px] uppercase tracking-wider text-text-subtle">
+          <span className="h-px flex-1 bg-border" />
+          not used in composite
+          <span className="h-px flex-1 bg-border" />
+        </div>
+      ) : (
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-secondary">
+          <div
+            className={cn("h-full rounded-full transition-all duration-300", TONE_BAR[tone])}
+            style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
+          />
+        </div>
+      )}
 
       {explanation && <p className="mt-3 text-[13px] leading-relaxed text-text-secondary">{explanation}</p>}
 
-      {(confidence != null || weight != null) && (
+      {!isUnavailable && (confidence != null || weight != null) && (
         <div className="mt-3 flex items-center gap-4 text-xs text-text-subtle">
           {confidence != null && (
             <span>
