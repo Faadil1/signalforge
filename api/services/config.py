@@ -70,7 +70,7 @@ class Settings:
         return [o.strip() for o in value.split(",") if o.strip()]
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         commit = _first_nonempty(
             os.getenv("GIT_COMMIT"),
             os.getenv("VERCEL_GIT_COMMIT_SHA"),
