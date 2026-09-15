@@ -49,6 +49,10 @@ async def decision_compare(token: str, baseline: dict):
     result = await compare_with_live_decision(_symbol_or_422(token), baseline)
     if not result.get("ok"):
         code = result.get("error", {}).get("code")
-        status_code = 422 if code in {"INVALID_BASELINE", "TOKEN_MISMATCH"} else 502
-        raise HTTPException(status_code=status_code, detail=result)
+        caller_errors = {
+            "INVALID_BASELINE",
+            "TOKEN_MISMATCH",
+            "BASELINE_CONTRACT_VERSION_MISMATCH",
+        }
+        raise HTTPException(status_code=422 if code in caller_errors else 502, detail=result)
     return result
