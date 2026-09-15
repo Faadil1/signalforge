@@ -1,6 +1,6 @@
 project: signalforge
 workstream: evidence_failure_hardening
-status: CODE_READY_AWAITING_REVIEW
+status: DEPLOYMENT_PREPARED_AWAITING_RAILWAY_CONNECTION
 branch: evidence-failure-hardening
 base_branch: main
 base_commit: 1aa3ac7a47d5a90d5d9fd9b4250a97e21afd7bf8
@@ -33,9 +33,13 @@ implemented:
   - adversarial_qa
   - deterministic_demo_runbook
   - real_failure_evidence_record
+  - docker_runtime_honors_platform_port
+  - railway_only_two_service_deployment_plan
+  - same_origin_frontend_proxy_contract
+  - runtime_deployment_runbook
 verified_ci:
-  prior_exact_head_run: 23
-  prior_exact_head_sha: 2071d6cdec282e8d1f97cc8d6249870513345a59
+  deployment_preparation_run: 28
+  deployment_preparation_sha: 28b4246b381f8007b32e05d523b74426517c4737
   backend:
     lint: green
     format: green
@@ -45,15 +49,33 @@ verified_ci:
     lint: green
     typecheck: green
     build: green
+deployment_plan:
+  platform: Railway
+  backend_service: signalforge-api
+  backend_root: /
+  frontend_service: signalforge-web
+  frontend_root: /web
+  canonical_judge_origin: frontend_public_domain
+  backend_healthcheck: /health
+  required_same_origin_routes:
+    - /health
+    - /.well-known/xagent-verification.json
+    - /api/v1/decision/BTC
+    - /api/v1/decision/BTC/delta
+    - /api/v1/validation/BTC?period_days=120&horizon_days=3
+    - /api/v1/evidence/negative-path
 pending:
-  - final_state_only_commit_ci_green
-  - merge_pr_2_after_review
-  - deploy_exact_review_commit
+  - connect_railway_plugin
+  - create_backend_and_frontend_services
+  - set_exact_review_commit_and_runtime_variables
+  - deploy_both_services_from_same_commit
   - verify_same_origin_public_endpoints
   - archive_runtime_verification_responses
+  - merge_pr_2_after_review_if_authorized
   - complete_official_source_verification_rights_package
 submission_ready: false
 stop_conditions:
+  - frontend_backend_commit_mismatch
   - unreachable_public_runtime
   - deployment_commit_mismatch
   - mock_presented_as_live
