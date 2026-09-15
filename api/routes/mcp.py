@@ -6,7 +6,8 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
-from services.decision_service import compare_with_live_decision, get_decision_packet
+from services.decision_service import compare_with_live_decision, get_decision_packet, get_decision_stress_test
+from services.evidence_intelligence import verify_decision_receipt
 from services.evidence_service import build_negative_path_evidence, build_resilience_benchmark
 from services.rate_limit import rate_limit
 from services.symbols import is_valid_token, normalize_token
@@ -15,7 +16,7 @@ from services.validation_service import run_signal_validation
 router = APIRouter(tags=["mcp"])
 
 MCP_PROTOCOL_VERSION = "2026-07-28"
-SERVER_INFO = {"name": "signalforge", "version": "0.4.0"}
+SERVER_INFO = {"name": "signalforge", "version": "0.5.0"}
 SERVER_META = {"io.modelcontextprotocol/serverInfo": SERVER_INFO}
 
 READ_ONLY_ANNOTATIONS = {
@@ -31,7 +32,7 @@ TOOLS: list[dict[str, Any]] = [
         "title": "Get Evidence-Bound Decision Packet",
         "description": (
             "Evaluate live market evidence for one token. Returns provenance, coverage, confidence, "
-            "actionability, invalidation conditions, a safe next action, and no execution authority."
+            "lineage concentration, recovery requirements, a tamper-evident receipt, and no execution authority."
         ),
         "inputSchema": {
             "type": "object",
@@ -55,6 +56,35 @@ TOOLS: list[dict[str, Any]] = [
                 "baseline": {"type": "object"},
             },
             "required": ["token", "baseline"],
+            "additionalProperties": False,
+        },
+        "annotations": READ_ONLY_ANNOTATIONS,
+    },
+    {
+        "name": "stress_test_decision",
+        "title": "Stress Test Decision Fragility",
+        "description": (
+            "Measure how the current Decision Packet changes when already-observed evidence channels or providers "
+            "are removed. No replacement values are invented and no historical replay is claimed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}},
+            "required": ["token"],
+            "additionalProperties": False,
+        },
+        "annotations": READ_ONLY_ANNOTATIONS,
+    },
+    {
+        "name": "verify_decision_receipt",
+        "title": "Verify Decision Receipt",
+        "description": (
+            "Verify the SHA-256 receipt embedded in a SignalForge Decision Packet without fetching market data."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"packet": {"type": "object"}},
+            "required": ["packet"],
             "additionalProperties": False,
         },
         "annotations": READ_ONLY_ANNOTATIONS,
@@ -199,6 +229,20 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
         result = await compare_with_live_decision(token, baseline)
         return result, not bool(result.get("ok"))
 
+    if name == "stress_test_decision":
+        token = _normalize_valid_token(arguments.get("token"))
+        if token is None:
+            return {"code": "INVALID_TOKEN", "message": "token must match ^[A-Z0-9]{2,10}$"}, True
+        result = await get_decision_stress_test(token)
+        return result, not bool(result.get("ok"))
+
+    if name == "verify_decision_receipt":
+        packet = arguments.get("packet")
+        if not isinstance(packet, dict):
+            return {"code": "INVALID_ARGUMENTS", "message": "packet with embedded receipt is required"}, True
+        result = verify_decision_receipt(packet)
+        return result, not bool(result.get("ok"))
+
     if name == "validate_price_signals":
         token = _normalize_valid_token(arguments.get("token"))
         period_days = arguments.get("period_days", 120)
@@ -247,7 +291,8 @@ async def mcp_post(request: Request):
                 "capabilities": {"tools": {"listChanged": False}},
                 "instructions": (
                     "SignalForge is a read-only pre-action evidence gate. Use get_decision_packet first; "
-                    "if it refuses, refresh evidence rather than inventing conviction. No tool authorizes execution."
+                    "stress_test_decision reveals fragility and provider concentration; if the gate refuses, "
+                    "refresh real evidence rather than inventing conviction. No tool authorizes execution."
                 ),
                 "ttlMs": 300000,
                 "cacheScope": "public",
