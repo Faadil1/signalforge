@@ -1,37 +1,25 @@
 project: signalforge
 workstream: cloudflare_runtime
 status: LIVE_RUNTIME_VERIFIED
-canonical_state: CLOUDFLARE_RUNTIME_VERIFIED_EXACT_COMMIT
+canonical_state: CLOUDFLARE_RUNTIME_VERIFIED_EXACT_COMMIT_TRACE_LIVE
 branch: cloudflare-runtime
 stacked_on_branch: evidence-failure-hardening
-stacked_on_commit: 71e44be24d4d66100fd8bb319b56a11c49c3fd8a
 pull_request_hardening: 2
+
 canonical_principles:
   - "Real failure > fake success"
   - "Evidence before recommendation. Refusal before false confidence."
   - "AVAILABLE != FRESH != CONSISTENT != ACTIONABLE"
   - "Bundle success != runtime proof"
-  - "Control-plane deployment metadata != public runtime proof"
-evidence_model:
-  statuses:
-    - OBSERVED_EXTERNAL
-    - OBSERVED_IN_BUILD
-    - INFERRED
-    - UNKNOWN
-real_failure_case:
-  id: aws-tokyo-binance-2025-04-15
-  source: Reuters
-  historical_replay: false
-  controlled_fixture_is_historical_replay: false
+  - "Control-plane metadata != public runtime proof"
+
 runtime:
   platform: Cloudflare Workers
   topology: single_worker_with_static_assets
   worker_name: signalforge
   public_origin: https://signalforge.faadil-casecraft.workers.dev
-  deployed_commit: 382139064dbaa7da52495e063a4ae07e88c85a12
-  deployed_version_id: eb5bcc9b-e5c0-4914-8ff2-9f82eecc0a39
-  deployment_id: bd0abda4-323e-41da-be1b-7d23b6262384
-  deployment_percentage: 100
+  deployed_commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
+  deployed_version_id: 9ab2f9cf-670b-4c17-b1ed-b8405132ee96
   placement_mode: targeted
   placement_target: aws:eu-central-1
   observed_cf_placement: remote-FRA
@@ -41,25 +29,28 @@ runtime:
   exact_commit_binding_verified: true
   xagent_exact_commit_verified: true
   same_origin_runtime_verified: true
+  trace_design_live: true
   note: >-
-    Branch commits after runtime verification do not change production. The verified public
-    runtime remains bound to deployed_commit until an explicit redeploy occurs.
-verified_runtime_calls:
+    Any commits after this state update do not change production. Production remains bound to
+    deployed_commit until another explicit redeploy occurs.
+
+verified_public_runtime_calls:
   health:
     status: pass
     http_status: 200
-    commit: 382139064dbaa7da52495e063a4ae07e88c85a12
+    commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
     mock_fallback_enabled: false
   xagent_verification:
     status: pass
     http_status: 200
     schema_version: 1
     slug: signalforge
-    commit: 382139064dbaa7da52495e063a4ae07e88c85a12
+    commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
   decision_btc:
     status: pass
     http_status: 200
     ok: true
+    stance: insufficient_evidence
     mode: live_partial
     provider: multi_provider_public
     ticker_source: coinbase_exchange
@@ -67,6 +58,7 @@ verified_runtime_calls:
     open_interest_source: unavailable
     funding_source: unavailable
     coverage: 0.6
+    confidence: 0.36
     actionability: insufficient_evidence
     execution_authorized: false
   decision_delta_btc:
@@ -74,17 +66,25 @@ verified_runtime_calls:
     http_status: 200
     ok: true
     baseline_established: true
+    material_change: false
     persistence: process_memory
   validation_btc_120d_3d:
     status: pass
     http_status: 200
     ok: true
-    validation_scope: price_derived_3_of_5
-    full_composite_validated: false
-    data_provider: multi_provider_public
-    kline_source: coinbase_exchange
     candles_used: 123
     sample_count: 91
+    validation_scope: price_derived_3_of_5
+    full_composite_validated: false
+    included_signals:
+      - technical
+      - trend
+      - volume
+    omitted_signals:
+      - funding
+      - open_interest
+    data_provider: multi_provider_public
+    kline_source: coinbase_exchange
     directional_accuracy: 0.543
     limitation: exploratory_calibration_not_profitability_proof
   negative_path:
@@ -92,89 +92,23 @@ verified_runtime_calls:
     http_status: 200
     principle: "Real failure > fake success"
     controlled_counter_case_passed: true
-    historical_replay: false
+    not_a_historical_replay: true
+    available_signals: 3
+    total_signals: 5
+    coverage: 0.6
     recommendation: insufficient_evidence
     actionability: insufficient_evidence
     execution_authorized: false
-runtime_failure_history:
-  - stage: first_real_cloudflare_deploy
-    result: rejected_before_activation
-    cause: httpcore2_missing_from_python_worker_bundle
-    remediation: explicit_httpcore2_dependency_and_packaging_assertion
-  - stage: local_dependency_metadata
-    result: dry_run_parse_failure
-    cause: UTF8_BOM_in_pyproject_toml_from_powershell_write
-    remediation: BOM_removed_and_file_rewritten_cleanly
-  - stage: first_successful_live_worker
-    deployed_commit: d0f2bad5db52f85175eb74c558e4c47987e8c456
-    result: partial_runtime_only
-    observed:
-      judge: pass
-      health: pass
-      xagent: pass
-      negative_path: pass
-      decision: fail_502
-      delta: fail_502
-      validation: fail_502
-    root_cause: Binance Futures public endpoints returned HTTP 403 from Cloudflare runtime
-  - stage: binance_spot_fallback
-    deployed_commit: 6cdba17c7fb50846d506191d329dd0347f22181f
-    result: failed_upstream_access
-    observed: Binance public Spot market-data endpoint also returned HTTP 403
-  - stage: targeted_cloudflare_placement
-    deployed_commit: 1e978c81a6e3127eff807d33b19e1108fab24bfb
-    placement: remote-FRA
-    result: Binance still returned HTTP 403 on Futures and Spot
-    conclusion: placement_change_did_not_restore_binance_access
-  - stage: multi_provider_public_fallback
-    deployed_commit: 5a47440d79b5406cd78b66134b37d00c38bc9de4
-    result: decision_and_delta_recovered
-    provider: coinbase_exchange
-    validation_initially_used_old_binance_only_path: true
-  - stage: explicit_validation_fallback
-    deployed_commit: 382139064dbaa7da52495e063a4ae07e88c85a12
-    result: full_required_runtime_gate_passed
-    note: >-
-      Forced-version proof and subsequent normal public requests both returned the exact deployed
-      commit and the new validation provenance fields. Do not claim a specific internal Cloudflare
-      propagation mechanism for the short-lived version observation immediately after deploy.
-implemented:
-  - per_source_provenance
-  - per_source_freshness_gate
-  - stale_unknown_inconsistent_evidence_removed_before_fusion
-  - fail_closed_no_hidden_mock_fallback
-  - insufficient_evidence_abstention
-  - execution_authorized_false
-  - public_negative_path_endpoint
-  - judge_negative_path_surface
-  - bounded_validation_3_of_5
-  - cloudflare_single_worker_architecture
-  - nextjs_static_export_for_worker_assets
-  - fastapi_asgi_python_worker_adapter
-  - httpx2_cloudflare_runtime_adapter
-  - explicit_httpcore2_cloudflare_dependency
-  - same_origin_static_and_api_surface
-  - targeted_cloudflare_placement
-  - independent_coinbase_public_market_fallback
-  - explicit_validation_market_fallback
-  - automated_six_endpoint_runtime_verification
-  - cloudflare_fallback_regression_test
-ui_evidence_consistency_patch:
-  verified_branch_checkpoint: eec4277d524ac977bbe3bba480d96f0c9290e2f2
-  production_deployed: false
-  cloudflare_verify_run: 42
-  cloudflare_verify_result: success
-  runtime_logic_changed: false
-trace_design_maximization_patch:
-  design_thesis: SEISMIC_MARKET_ATLAS
+
+trace_design:
+  status: LIVE_AND_VISUALLY_APPROVED
+  direction: SEISMIC_MARKET_ATLAS
   canonical_sentence: "Map the evidence. Refuse the fiction."
   design_spec: docs/TRACE-DESIGN-SEISMIC-MARKET-ATLAS.md
-  verified_code_checkpoint: eaca1d4c65ba35ece7543920df7d8c26c645e532
-  cloudflare_verify_run: 66
-  cloudflare_verify_result: success
-  production_deployed: false
+  visual_review: approved_by_user
+  deployed_with_exact_commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
   runtime_logic_changed: false
-  design_constraints:
+  constraints:
     - no_ivory_or_paper_aesthetic
     - no_navy_black_AI_dashboard_default
     - no_blue_SaaS_admin_template_language
@@ -182,90 +116,97 @@ trace_design_maximization_patch:
     - no_generic_bento_card_system
     - semantic_color_only
   lineage:
-    primary:
-      - seismology
-      - topographic_surveying
-      - field_instrumentation
-      - cartographic_contours
-      - scientific_observation_boards
-    anti_lineages:
-      - generic_fintech_dashboard
-      - dark_AI_agent_dashboard
-      - ivory_editorial
-      - glassmorphism
-      - retro_terminal_cosplay
-  new_primitives:
+    - seismology
+    - topographic_surveying
+    - field_instrumentation
+    - cartographic_contours
+    - scientific_observation_boards
+  primitives:
     - web/src/components/atlas/AtlasPanel.tsx
     - web/src/components/atlas/EvidenceRail.tsx
     - web/src/components/atlas/ActionabilityGate.tsx
-  rebuilt_surfaces:
+  surfaces:
     - landing_seismic_evidence_atlas
     - dashboard_observation_field
     - token_evidence_dossier
     - judge_live_proof_dossier
     - playground_agent_contract_interface
     - strategies_calibration_lab
-    - desktop_instrument_index_navigation
-    - mobile_instrument_navigation
-  identity_changes:
-    - generic_blue_bolt_logo_removed
-    - cartographic_fault_line_mark_added
-    - favicon_aligned_to_new_mark
-    - mineral_oxidized_palette
-    - reduced_radius_and_low_shadow_material_system
-  motion_grammar:
+    - instrument_index_navigation
+  identity:
+    generic_blue_bolt_removed: true
+    cartographic_fault_line_mark_live: true
+    favicon_aligned: true
+  motion:
     - restrained_scan_pass
     - evidence_status_pulse
     - selection_state_shift
-    - global_reduced_motion_override_preserved
-  local_review_support:
-    default_dev_API_proxy: verified_cloudflare_runtime
-    override: API_URL
-    reason: avoid_empty_404_surfaces_when_reviewing_UI_without_local_FastAPI
-  known_local_review_issues_addressed:
-    - duplicate_react_stat_keys_in_agent_interface
-    - empty_local_UI_due_to_missing_local_API_process
-  exact_head_gates:
-    next_static_export: green
-    typescript: green
-    fallback_regression: green
-    fastapi_import: green
-    pywrangler_dry_run_compile: green
-    http_runtime_packaging: green
-verified_build_gate:
-  deployed_runtime:
-    workflow: Cloudflare Runtime Verify
-    run: 32
-    sha: 382139064dbaa7da52495e063a4ae07e88c85a12
-    result: success
-  trace_design_checkpoint:
-    workflow: Cloudflare Runtime Verify
-    run: 66
-    sha: eaca1d4c65ba35ece7543920df7d8c26c645e532
-    result: success
-    runtime_logic_changed: false
-controlled_deploy_trigger:
-  workflow: .github/workflows/deploy-cloudflare.yml
-  manual_dispatch_supported: true
-  automated_trigger: marker_file_change
-  marker_file: .cloudflare-deploy-trigger
-  behavior: rebuild_smoke_dry_run_deploy_exact_sha_verify_archive
+    - reduced_motion_preserved
+
+local_and_ci_gates:
+  exact_sha: 973ce1530e7a2205366b1115dc9bb4804bae2353
+  local_static_export: pass
+  local_typescript: pass
+  local_pywrangler_dry_run: pass
+  git_status_clean_before_deploy: true
+  cloudflare_verify_run: 71
+  cloudflare_verify_result: success
+  fallback_regression: pass
+  fastapi_import: pass
+  worker_compile: pass
+  httpx2_httpcore2_packaging: pass
+
+regression_lock:
+  file: tests/test_cloudflare_market_fallback.py
+  scenario: Binance_Futures_403_then_Binance_Spot_403_then_Coinbase_live
+  assertions:
+    - live_partial_mode
+    - provider_multi_provider_public
+    - ticker_coinbase_exchange
+    - klines_coinbase_exchange
+    - funding_unavailable
+    - open_interest_unavailable
+    - no_mock_sources
+    - no_synthetic_futures_data
+
+real_failure_case:
+  id: aws-tokyo-binance-2025-04-15
+  source: Reuters
+  epistemic_status: OBSERVED_EXTERNAL
+  historical_replay: false
+  controlled_fixture_is_historical_replay: false
+
+runtime_failure_history:
+  - httpcore2_missing_caused_first_worker_validation_rejection
+  - UTF8_BOM_in_pyproject_toml_caused_local_parse_failure
+  - Binance_Futures_returned_HTTP_403_from_Cloudflare
+  - Binance_Spot_returned_HTTP_403_from_Cloudflare
+  - targeted_remote_FRA_did_not_restore_Binance_access
+  - Coinbase_Exchange_public_fallback_restored_live_partial_decision_and_delta
+  - explicit_validation_fallback_restored_validation
+  - prior_exact_commit_382139064dbaa7da52495e063a4ae07e88c85a12_was_fully_verified
+  - TRACE_exact_commit_973ce1530e7a2205366b1115dc9bb4804bae2353_now_fully_verified
+
+pr_and_merge_boundary:
+  pr_2_hardening: open_and_unmerged
+  rule: do_not_merge_PR_2_or_runtime_branch_without_explicit_user_authorization
+  runtime_branch_final_merge: pending
+  final_main_exact_sha_redeploy: required_after_explicit_final_merges
+
 submission_ready: false
 submission_blockers:
-  - TRACE_design_checkpoint_verified_but_not_yet_visually_reviewed_and_redeployed
   - runtime_branch_not_final_reviewed_merged_main
   - hardening_pr_2_not_merged_without_user_authorization
   - final_official_xagent_submission_package_not_completed
   - final_main_exact_commit_redeploy_not_yet_performed
+
 pending:
-  - pull_latest_cloudflare_runtime_and_review_TRACE_seismic_market_atlas_locally_against_live_runtime_data
-  - if_design_review_passes_run_local_static_export_and_pywrangler_dry_run
-  - redeploy_exact_reviewed_design_branch_SHA_and_rerun_six_public_gates
-  - create_or_update_stacked_runtime_pr
-  - preserve_PR_2_review_boundary_and_do_not_merge_without_authorization
-  - complete_official_source_verification_rights_package
-  - after_explicit_final_merges_redeploy_exact_final_main_sha
-  - rerun_all_public_runtime_gates_on_exact_final_main_sha
+  - create_or_update_stacked_runtime_pr_without_auto_merge
+  - complete_official_X_Agent_submission_package
+  - preserve_PR_2_review_boundary
+  - after_explicit_final_merges_redeploy_exact_final_main_SHA
+  - rerun_six_public_runtime_gates_on_exact_final_main_SHA
+
 stop_conditions:
   - unreachable_public_runtime
   - deployment_commit_mismatch
