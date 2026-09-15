@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "signalforge-cloudflare-worker"
 version = "0.3.0"
 requires-python = ">=3.13"
@@ -19,4 +19,3 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["api"]
 addopts = "-q"
-
