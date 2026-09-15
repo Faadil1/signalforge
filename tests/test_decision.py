@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import services.decision_service as decision_service
+from services.evidence_intelligence import verify_decision_receipt
 
 
 def _payload(score=70.0):
@@ -21,9 +22,24 @@ def _payload(score=70.0):
         "execution_authorized": False,
         "data_mode": "live",
         "source_meta": {
-            "provider": "binance_public",
-            "sources": {"ticker": "binance_futures"},
+            "provider": "multi_provider_public",
+            "sources": {
+                "ticker": "coinbase_exchange",
+                "klines": "coinbase_exchange",
+                "funding": "binance_futures",
+                "open_interest": "binance_futures",
+            },
+            "freshness": {
+                "ticker": {"status": "fresh"},
+                "klines": {"status": "fresh"},
+                "funding": {"status": "fresh"},
+                "open_interest": {"status": "fresh"},
+            },
+            "quality_summary": {"healthy_sources": ["ticker", "klines", "funding", "open_interest"]},
             "observed_at": "2026-09-14T20:00:00+00:00",
+            "fallback_active": True,
+            "primary_provider": "binance_public",
+            "fallback_provider": "coinbase_exchange",
         },
         "sub_signals": [
             {"name": "technical", "value": 68.0, "confidence": 0.7, "available": True, "reason": "test"},
@@ -51,8 +67,42 @@ def test_decision_packet_is_evidence_bound_and_versioned(monkeypatch):
     assert packet["agent_next_action"]["code"] == "RESEARCH_HANDOFF"
     assert packet["agent_next_action"]["execution_authorized"] is False
     assert packet["data_quality"]["mode"] == "live"
+    assert packet["data_quality"]["fallback_active"] is True
     assert packet["evidence"]["supporting"]
+    assert packet["evidence_lineage"]["dominant_provider"] == "coinbase_exchange"
+    assert packet["evidence_lineage"]["independence_claimed"] is False
+    assert packet["recovery_requirements"]["coverage_gate"]["met"] is True
     assert packet["snapshot_id"]
+    assert len(packet["receipt"]["digest"]) == 64
+    assert verify_decision_receipt(packet)["valid"] is True
+
+
+def test_decision_receipt_detects_tampering(monkeypatch):
+    async def fake(_token):
+        return _payload()
+
+    monkeypatch.setattr(decision_service, "get_signal_payload", fake)
+    packet = asyncio.run(decision_service.get_decision_packet("BTC"))
+    packet["score"] = 1.0
+
+    verification = verify_decision_receipt(packet)
+    assert verification["ok"] is True
+    assert verification["valid"] is False
+
+
+def test_decision_stress_test_is_bounded_and_read_only(monkeypatch):
+    async def fake(_token):
+        return _payload()
+
+    monkeypatch.setattr(decision_service, "get_signal_payload", fake)
+    result = asyncio.run(decision_service.get_decision_stress_test("BTC"))
+
+    assert result["ok"] is True
+    assert result["scope"] == "counterfactual_dropout_of_currently_observed_subsignals_not_market_replay"
+    assert result["execution_authorized"] is False
+    assert result["minimum_dropouts_to_refusal"] is not None
+    assert result["provider_dropouts"]
+    assert all(item["result"]["execution_authorized"] is False for item in result["provider_dropouts"])
 
 
 def test_delta_establishes_baseline_then_detects_change(monkeypatch):
