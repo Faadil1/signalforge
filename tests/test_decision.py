@@ -5,6 +5,19 @@ import asyncio
 import services.decision_service as decision_service
 from services.evidence_intelligence import verify_decision_receipt
 
+SOURCE_AT = "2026-09-14T19:56:00+00:00"
+RECEIVED_AT = "2026-09-14T20:00:00+00:00"
+
+
+def _fresh(max_age_seconds: int) -> dict:
+    return {
+        "status": "fresh",
+        "source_timestamp": SOURCE_AT,
+        "received_at": RECEIVED_AT,
+        "age_seconds": 240.0,
+        "max_age_seconds": max_age_seconds,
+    }
+
 
 def _payload(score=70.0):
     return {
@@ -14,7 +27,7 @@ def _payload(score=70.0):
         "score": score,
         "confidence": 0.62,
         "recommendation": "buy" if score >= 60 else "hold",
-        "timestamp": "2026-09-14T20:00:00+00:00",
+        "timestamp": RECEIVED_AT,
         "available_signals": 5,
         "total_signals": 5,
         "coverage": 1.0,
@@ -30,13 +43,13 @@ def _payload(score=70.0):
                 "open_interest": "binance_futures",
             },
             "freshness": {
-                "ticker": {"status": "fresh"},
-                "klines": {"status": "fresh"},
-                "funding": {"status": "fresh"},
-                "open_interest": {"status": "fresh"},
+                "ticker": _fresh(300),
+                "klines": _fresh(129600),
+                "funding": _fresh(900),
+                "open_interest": _fresh(300),
             },
             "quality_summary": {"healthy_sources": ["ticker", "klines", "funding", "open_interest"]},
-            "observed_at": "2026-09-14T20:00:00+00:00",
+            "observed_at": RECEIVED_AT,
             "fallback_active": True,
             "primary_provider": "binance_public",
             "fallback_provider": "coinbase_exchange",
@@ -69,8 +82,12 @@ def test_decision_packet_is_evidence_bound_and_versioned(monkeypatch):
     assert packet["data_quality"]["mode"] == "live"
     assert packet["data_quality"]["fallback_active"] is True
     assert packet["evidence"]["supporting"]
+    assert packet["evidence_admission_ledger"]["admitted_count"] == 4
     assert packet["evidence_lineage"]["dominant_provider"] == "coinbase_exchange"
     assert packet["evidence_lineage"]["independence_claimed"] is False
+    assert packet["evidence_lease"]["status"] == "valid"
+    assert packet["evidence_lease"]["limiting_raw_source"] in {"ticker", "open_interest"}
+    assert packet["evidence_lease"]["forecast_validity_guaranteed"] is False
     assert packet["recovery_requirements"]["coverage_gate"]["met"] is True
     assert packet["snapshot_id"]
     assert len(packet["receipt"]["digest"]) == 64
@@ -102,6 +119,7 @@ def test_decision_stress_test_is_bounded_and_read_only(monkeypatch):
     assert result["execution_authorized"] is False
     assert result["minimum_dropouts_to_refusal"] is not None
     assert result["provider_dropouts"]
+    assert result["evidence_lease"]["status"] == "valid"
     assert all(item["result"]["execution_authorized"] is False for item in result["provider_dropouts"])
 
 
