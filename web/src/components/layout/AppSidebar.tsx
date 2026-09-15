@@ -6,7 +6,7 @@ import { clsx } from "clsx";
 import {
   Radar,
   ScanSearch,
-  ActivitySquare,
+  FlaskConical,
   Bell,
   Braces,
   ShieldCheck,
@@ -18,7 +18,7 @@ const NAV = [
   { href: "/dashboard", label: "Observation Field", short: "Field", icon: Radar, code: "01" },
   { href: "/token", label: "Evidence Inspect", short: "Inspect", icon: ScanSearch, code: "02" },
   ...(ENABLE_BACKTESTS
-    ? [{ href: "/strategies", label: "Calibration Lab", short: "Lab", icon: ActivitySquare, code: "03", experimental: true }]
+    ? [{ href: "/strategies", label: "Calibration Lab", short: "Lab", icon: FlaskConical, code: "03", experimental: true }]
     : []),
   { href: "/playground", label: "Agent Interface", short: "API", icon: Braces, code: "04" },
   ...(ENABLE_ALERTS ? [{ href: "/alerts", label: "Alerts", short: "Alerts", icon: Bell, code: "05" }] : []),
@@ -65,7 +65,7 @@ export function AppSidebar({ collapsed }: { collapsed?: boolean }) {
                 <span className={clsx("font-mono text-[9px] tracking-[0.12em]", active ? "text-brand" : "text-text-subtle")}>{item.code}</span>
                 <item.icon className="h-4 w-4 shrink-0" />
                 {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                {!collapsed && item.experimental && <span className="atlas-stamp border-warning/40 text-warning">LAB</span>}
+                {!collapsed && "experimental" in item && item.experimental && <span className="atlas-stamp border-warning/40 text-warning">LAB</span>}
               </Link>
             );
           })}
