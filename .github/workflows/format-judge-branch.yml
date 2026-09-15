@@ -1,5 +1,6 @@
 name: Format judge branch
 
+# Temporary one-shot formatter for the judge-ready branch.
 on:
   push:
     branches: [judge-ready-build]
