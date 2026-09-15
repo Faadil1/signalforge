@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "clsx";
-import { Radar, ScanSearch, ActivitySquare, Bell, Braces } from "lucide-react";
+import { Radar, ScanSearch, FlaskConical, Bell, Braces } from "lucide-react";
 import { ENABLE_ALERTS, ENABLE_BACKTESTS } from "@/lib/features";
 
 export function MobileNavigation() {
@@ -11,7 +11,7 @@ export function MobileNavigation() {
   const items = [
     { href: "/dashboard", label: "Field", icon: Radar },
     { href: "/token", label: "Inspect", icon: ScanSearch },
-    ...(ENABLE_BACKTESTS ? [{ href: "/strategies", label: "Lab", icon: ActivitySquare }] : []),
+    ...(ENABLE_BACKTESTS ? [{ href: "/strategies", label: "Lab", icon: FlaskConical }] : []),
     { href: "/playground", label: "Agent", icon: Braces },
     ...(ENABLE_ALERTS ? [{ href: "/alerts", label: "Alerts", icon: Bell }] : []),
   ];
