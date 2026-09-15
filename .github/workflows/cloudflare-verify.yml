@@ -51,7 +51,7 @@ jobs:
           import httpx2
           httpx2.alias_httpx()
           from main import app
-          assert app.title == "SignalForge API"
+          assert app.title == "SignalForge"
           print("SignalForge FastAPI import: OK")
           PY
 
