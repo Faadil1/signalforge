@@ -11,6 +11,7 @@ from services.decision_service import (
 from services.errors import INVALID_TOKEN, error_token_payload
 from services.evidence_intelligence import verify_decision_receipt
 from services.rate_limit import rate_limit
+from services.recovery_service import get_recovery_plan
 from services.symbols import is_valid_token, normalize_token
 
 router = APIRouter(tags=["decision"])
@@ -49,6 +50,19 @@ async def decision(token: str):
 async def decision_stress(token: str):
     """Measure single-channel and provider-dropout fragility without inventing replacement evidence."""
     result = await get_decision_stress_test(_symbol_or_422(token))
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+@router.get("/decision/{token}/recovery-plan", dependencies=[Depends(_decision_rate_limited)])
+async def decision_recovery_plan(token: str):
+    """Quantify evidence debt and return the safe reacquisition path after a refusal.
+
+    The plan is advisory and read-only. It never predicts that reacquired evidence
+    will make the next decision actionable and never grants execution authority.
+    """
+    result = await get_recovery_plan(_symbol_or_422(token))
     if not result.get("ok"):
         raise HTTPException(status_code=502, detail=result)
     return result
