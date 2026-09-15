@@ -223,6 +223,9 @@ def install_cloudflare_binance_fallback() -> None:
         return payload
 
     client_type.get_klines = get_klines
+    # Validation gets a dedicated entrypoint so it cannot accidentally resolve
+    # back to the original Binance-only method in this runtime.
+    client_type.get_validation_klines = get_klines
     client_type._get_spot_ticker = get_spot_ticker
     client_type.fetch_signal_sources = fetch_signal_sources
     client_type._cloudflare_market_fallback_installed = True
