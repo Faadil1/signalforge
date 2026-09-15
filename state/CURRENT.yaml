@@ -35,13 +35,6 @@ runtime:
   placement_mode: targeted
   placement_target: aws:eu-central-1
   observed_cf_placement: remote-FRA
-  worker_first_routes:
-    - /api/*
-    - /health
-    - /.well-known/*
-    - /docs*
-    - /openapi.json
-  static_judge_surface: /judge/
   allow_mock_fallback: false
   alerts_enabled: false
   execution_authorized: false
@@ -49,9 +42,8 @@ runtime:
   xagent_exact_commit_verified: true
   same_origin_runtime_verified: true
   note: >-
-    State/handover commits created after live verification advance the branch head but do not
-    change the already verified production binding. The verified public runtime remains bound
-    to deployed_commit until an explicit redeploy occurs.
+    Branch commits after runtime verification do not change production. The verified public
+    runtime remains bound to deployed_commit until an explicit redeploy occurs.
 verified_runtime_calls:
   health:
     status: pass
@@ -175,15 +167,52 @@ implemented:
   - commit_bound_cloudflare_deploy_workflow
   - automated_six_endpoint_runtime_verification
   - runtime_evidence_artifact_retention_90_days
+ui_evidence_consistency_patch:
+  verified_branch_checkpoint: eec4277d524ac977bbe3bba480d96f0c9290e2f2
+  production_deployed: false
+  cloudflare_verify_run: 42
+  cloudflare_verify_result: success
+  scope:
+    - replace_binance_only_UI_claims_with_dynamic_multi_provider_provenance
+    - replace_agent_can_act_on_with_verify_before_acting
+    - replace_independent_signals_with_complementary_evidence_channels
+    - render_unavailable_funding_and_open_interest_as_excluded_not_score_50
+    - rename_signals_live_to_markets_loaded
+    - expose_coverage_provider_and_per_source_provenance_in_dashboard
+    - label_agent_api_usage_as_process_local_and_remove_misleading_uptime
+    - show_execution_authority_boundary_in_product_surfaces
+    - correct_GitHub_link_and_live_curl_origin
+    - add_restrained_evidence_ledger_grid_texture
+  runtime_logic_changed: false
+  diff_since_last_canonical_state:
+    UI_files: 5
+    component_files: 1
+    test_files: 1
+    workflow_files: 1
+  regression_test:
+    file: tests/test_cloudflare_market_fallback.py
+    scenario: Binance_Futures_403_then_Binance_Spot_403_then_Coinbase_live
+    asserts_no_mock: true
+    asserts_no_synthetic_futures_data: true
+    asserts_explicit_coinbase_provenance: true
+    run_42_result: success
 verified_build_gate:
-  workflow: Cloudflare Runtime Verify
-  run: 32
-  sha: 382139064dbaa7da52495e063a4ae07e88c85a12
-  result: success
-  next_static_export: green
-  judge_asset_exported: true
-  pyodide_dependencies: green
-  worker_dry_run_compile: green
+  deployed_runtime:
+    workflow: Cloudflare Runtime Verify
+    run: 32
+    sha: 382139064dbaa7da52495e063a4ae07e88c85a12
+    result: success
+  latest_branch_checkpoint:
+    workflow: Cloudflare Runtime Verify
+    run: 42
+    sha: eec4277d524ac977bbe3bba480d96f0c9290e2f2
+    result: success
+    next_static_export: green
+    judge_asset_exported: true
+    fallback_regression: green
+    pyodide_dependencies: green
+    worker_dry_run_compile: green
+    HTTP_runtime_packaging: green
 controlled_deploy_trigger:
   workflow: .github/workflows/deploy-cloudflare.yml
   manual_dispatch_supported: true
@@ -192,12 +221,14 @@ controlled_deploy_trigger:
   behavior: rebuild_smoke_dry_run_deploy_exact_sha_verify_archive
 submission_ready: false
 submission_blockers:
+  - UI_patch_verified_but_not_yet_visually_reviewed_and_redeployed
   - runtime_branch_not_final_reviewed_merged_main
   - hardening_pr_2_not_merged_without_user_authorization
   - final_official_xagent_submission_package_not_completed
   - final_main_exact_commit_redeploy_not_yet_performed
 pending:
-  - add_regression_test_for_binance_403_to_independent_public_provider_fallback
+  - pull_latest_branch_and_visually_review_UI_evidence_consistency_patch
+  - if_UI_review_passes_redeploy_exact_reviewed_branch_SHA_and_rerun_public_gates
   - create_or_update_stacked_runtime_pr
   - preserve_PR_2_review_boundary_and_do_not_merge_without_authorization
   - complete_official_source_verification_rights_package
