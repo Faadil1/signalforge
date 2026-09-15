@@ -1,209 +1,204 @@
 project: signalforge
-handover_type: cloudflare_runtime_trace_live_verified
-branch: cloudflare-runtime
-stacked_on: evidence-failure-hardening
-hardening_pull_request: 2
-current_state: LIVE_RUNTIME_VERIFIED
-canonical_state: CLOUDFLARE_RUNTIME_VERIFIED_EXACT_COMMIT_TRACE_LIVE
+handover_type: winning_intelligence_v2_verified_not_deployed
+branch: winning-intelligence-v2
+current_state: WINNING_INTELLIGENCE_V2_VERIFIED_NOT_DEPLOYED
+canonical_state: PRODUCT_DIFFERENTIATION_VERIFIED_BEFORE_UI_V2
 
 objective: >-
-  Preserve the exact-commit verified Cloudflare runtime and the approved TRACE Seismic Market Atlas
-  design while moving SignalForge toward reviewed PR integration and the official X-Agent submission package.
+  Preserve the verified Winning Intelligence v2 product changes and competitive differentiation before
+  opening the next TRACE UI/UX pass. Do not claim branch-only behavior is live until exact-commit deployment proof exists.
 
-verified_public_runtime:
+upstream_state:
+  repository: opeblow/signalforge
+  pr_1: merged
+  upstream_main_merge_sha: eecba778ff49dbab58d2b383428972b9f4c5c5e5
+  merged_at_utc: "2026-09-15T16:38:16Z"
+  winning_intelligence_v2_upstream: not_merged
+
+current_production:
   origin: https://signalforge.faadil-casecraft.workers.dev
-  deployed_commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
+  deployed_source_sha: 973ce1530e7a2205366b1115dc9bb4804bae2353
   cloudflare_version_id: 9ab2f9cf-670b-4c17-b1ed-b8405132ee96
-  placement_mode: targeted
-  placement_target: aws:eu-central-1
-  observed_cf_placement: remote-FRA
+  placement: remote-FRA
+  trace_seismic_market_atlas_live: true
+  exact_commit_verified: true
   allow_mock_fallback: false
   execution_authorized: false
-  production_contains_trace_seismic_atlas: true
-  visual_review_approved: true
-  exact_commit_binding_verified: true
-  note: >-
-    State/handover commits created after the verified deployment do not change production.
-    Production remains bound to deployed_commit until the next explicit deployment.
+  winning_intelligence_v2_live: false
 
-public_runtime_proof:
-  health:
-    http_status: 200
-    status: ok
-    commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
-    mock_fallback_enabled: false
-  xagent_verification:
-    http_status: 200
-    schemaVersion: 1
-    slug: signalforge
-    commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
-  decision_btc:
-    http_status: 200
-    ok: true
-    stance: insufficient_evidence
-    score_observed: 35.21
-    confidence: 0.36
-    coverage: 0.6
-    actionability: insufficient_evidence
-    execution_authorized: false
+production_runtime_truth:
+  decision:
     mode: live_partial
     provider: multi_provider_public
-    sources:
-      ticker: coinbase_exchange
-      klines: coinbase_exchange
-      open_interest: unavailable
-      funding: unavailable
-  delta_btc:
-    http_status: 200
-    ok: true
-    baseline_established: true
-    material_change: false
-    persistence: process_memory
-  validation_btc:
-    http_status: 200
-    ok: true
-    period_days_requested: 120
-    horizon_days: 3
-    candles_used: 123
-    sample_count: 91
+    ticker: coinbase_exchange
+    klines: coinbase_exchange
+    funding: unavailable
+    open_interest: unavailable
+    execution_authorized: false
+  validation:
     validation_scope: price_derived_3_of_5
     full_composite_validated: false
     data_provider: multi_provider_public
     kline_source: coinbase_exchange
-    directional_accuracy: 0.543
-    limitations:
-      - funding_and_open_interest_history_not_included
-      - exploratory_calibration_not_profitability_proof
-      - no_synthetic_market_data
   negative_path:
-    http_status: 200
-    ok: true
-    principle: "Real failure > fake success"
-    controlled_counter_case_passed: true
+    passed: true
     not_a_historical_replay: true
-    coverage: 0.6
-    actionability: insufficient_evidence
     execution_authorized: false
 
-trace_design_direction:
-  status: LIVE_AND_APPROVED
-  name: Seismic Market Atlas
-  canonical_sentence: "Map the evidence. Refuse the fiction."
-  design_spec: docs/TRACE-DESIGN-SEISMIC-MARKET-ATLAS.md
-  deployed_commit: 973ce1530e7a2205366b1115dc9bb4804bae2353
-  runtime_logic_changed: false
-  aesthetic_lineage:
-    primary:
-      - seismology
-      - topographic_surveying
-      - field_instrumentation
-      - cartographic_contours
-      - scientific_observation_boards
-      - evidence_dossiers
-    forbidden:
-      - ivory_or_paper_editorial
-      - blue_SaaS_dashboard
-      - navy_or_black_AI_dashboard
-      - crypto_neon_terminal
-      - generic_bento_cards
-      - glassmorphism
-  shared_primitives:
-    - web/src/components/atlas/AtlasPanel.tsx
-    - web/src/components/atlas/EvidenceRail.tsx
-    - web/src/components/atlas/ActionabilityGate.tsx
-  rebuilt_surfaces:
-    - /
-    - /dashboard
-    - /token
-    - /judge
-    - /playground
-    - /strategies
-  identity:
-    generic_blue_lightning_logo: removed
-    cartographic_fault_line_mark: live
-    favicon_updated: true
-  motion_grammar:
-    - restrained_scan_pass
-    - live_evidence_pulse
-    - selection_state_shift
-    - reduced_motion_preserved
+winning_intelligence_v2_checkpoint:
+  code_and_docs_sha: d4398c624900964f96ab63fa2652b1994115eb9f
+  verified: true
+  deployed: false
+  ci:
+    standard_ci_run: 46
+    standard_ci_run_id: 35001362158
+    standard_ci_result: success
+    cloudflare_verify_run: 90
+    cloudflare_verify_run_id: 35001362128
+    cloudflare_verify_result: success
+  scorecard_targeting:
+    real_agent_user_value_30: narrow_pre_action_evidence_gate
+    capability_quality_25: refusal_behavior_resilience_benchmark_errors_limits
+    engineering_20: stateless_compare_tests_exact_commit_deploy_model
+    mcp_productization_15: real_stateless_MCP_tool_contracts_authority_errors
+    adoption_operating_10: operations_runbook_versioning_rollback_incident_response
 
-local_review_and_deploy_gate:
-  exact_sha: 973ce1530e7a2205366b1115dc9bb4804bae2353
-  git_status_clean: true
-  next_static_export: pass
-  static_routes_generated: 11
-  static_asset_count_observed_in_worker_bundle: 107
-  typescript: pass
-  uv_sync_locked: pass
-  pywrangler_dry_run: pass
-  real_deploy: pass
-  deployed_version_id: 9ab2f9cf-670b-4c17-b1ed-b8405132ee96
-  six_public_gates: pass
+implemented_hidden_spots:
+  - id: durable_delta
+    before: process_local_delta_only
+    after:
+      rest: POST_/api/v1/decision/{token}/compare
+      mcp: compare_decision_packet
+      persistence: caller_supplied_baseline
+    retained_convenience_endpoint: GET_/api/v1/decision/{token}/delta
+    retained_limit: process_memory_non_durable
+  - id: measurable_refusal_quality
+    before: one_negative_path_fixture
+    after:
+      rest: GET_/api/v1/evidence/resilience-benchmark
+      mcp: run_evidence_resilience_benchmark
+      scenarios: 4
+      scope: deterministic_policy_conformance_not_market_accuracy
+      historical_replay: false
+  - id: explicit_agent_contract
+    decision_contract_version: "1.1"
+    policy_version: evidence-gate-2026-09
+    agent_next_actions:
+      - REFRESH_EVIDENCE
+      - OBSERVE_ONLY
+      - RESEARCH_HANDOFF
+    authority: research_only
+    execution_authorized: false
+  - id: real_MCP
+    endpoint: POST_/mcp
+    protocol: "2026-07-28"
+    state: stateless
+    methods:
+      - server/discover
+      - tools/list
+      - tools/call
+    tools:
+      - get_decision_packet
+      - compare_decision_packet
+      - validate_price_signals
+      - inspect_negative_path
+      - run_evidence_resilience_benchmark
+    read_only: true
+    destructive: false
+    origin_validation: true
+  - id: capabilities_manifest
+    endpoint: GET_/api/v1/capabilities
+  - id: operability
+    runbook: docs/OPERATIONS.md
+  - id: competitive_intelligence
+    document: docs/WINNING-INTELLIGENCE-V2.md
+  - id: agent_integration
+    document: docs/AGENT-INTEGRATION.md
 
-ci_verification:
-  trace_live_checkpoint:
-    run: 71
-    sha: 973ce1530e7a2205366b1115dc9bb4804bae2353
-    result: success
-    gates:
-      - Next_static_build
-      - TypeScript
-      - FastAPI_import
-      - Binance_blocked_Coinbase_fallback_regression
-      - pywrangler_dry_run_compile
-      - httpx2_httpcore2_packaging
+competitive_intelligence:
+  closest_project: BHRIGU_OlaXBT_Strategy_Evidence_Agent_PR_55
+  distinction: >-
+    BHRIGU evaluates evidence around an external strategy/signal authority. SignalForge owns a bounded evidence-fusion
+    gate and makes provider degradation, evidence removal, confidence loss and refusal independently testable.
+  mechanisms_learned_without_copying_products:
+    Contract_Guard: judge_runnable_deterministic_benchmark
+    YAI_Agent_Core: explicit_state_and_MCP_productization
+    Finfold: operational_evidence_and_claim_to_evidence_discipline
+    SchemaBridge: narrow_job_structured_errors_and_limits
+    SafeGate: authority_boundary
+    BountyProof: conservative_preflight_pattern
+  field_saturation:
+    - generic_scores
+    - buy_sell_hold
+    - live_market_dashboards
+    - generic_chat
+    - generic_AI_agent
+    - tool_count_race
+    - basic_MCP_wrapper
+    - backtest_as_primary_proof
+  unique_bundle:
+    - real_provider_failure_observed
+    - transparent_multi_provider_partial_recovery
+    - unavailable_derivatives_channels_not_synthesized
+    - machine_readable_refusal
+    - deterministic_resilience_conformance
+    - stateless_material_change_compare
+    - real_read_only_MCP
+    - exact_commit_runtime_identity
 
-regression_lock:
-  file: tests/test_cloudflare_market_fallback.py
-  scenario: Binance_Futures_403_then_Binance_Spot_403_then_Coinbase_live
-  assertions:
-    - live_partial_mode
-    - provider_multi_provider_public
-    - ticker_coinbase_exchange
-    - klines_coinbase_exchange
-    - funding_unavailable
-    - open_interest_unavailable
-    - no_mock_sources
-    - no_synthetic_futures_data
+canonical_story:
+  one_sentence: "SignalForge is a pre-action evidence gate that proves when a market agent should refuse to act."
+  supporting_line: "Evidence before recommendation. Refusal before false confidence."
+  product_flow: >-
+    acquire evidence -> classify quality -> remove degraded evidence -> recompute coverage/confidence ->
+    produce bounded Decision Packet or machine-readable refusal -> require external authority for execution
 
-runtime_failure_history:
-  - first Cloudflare production upload rejected before activation because httpcore2 was missing.
-  - UTF-8 BOM in pyproject.toml caused a local parser failure and was removed.
-  - Binance Futures returned HTTP 403 from Cloudflare runtime.
-  - Binance Spot also returned HTTP 403; targeted remote-FRA placement did not restore access.
-  - Coinbase Exchange fallback restored Decision and Delta without fabricating unavailable channels.
-  - Validation was explicitly routed through the multi-provider kline path and then passed.
-  - previous verified runtime SHA 382139064dbaa7da52495e063a4ae07e88c85a12 was superseded by approved TRACE runtime SHA 973ce1530e7a2205366b1115dc9bb4804bae2353.
-
-canonical_epistemic_rules:
-  - Real failure > fake success.
-  - Evidence before recommendation. Refusal before false confidence.
-  - AVAILABLE != FRESH != CONSISTENT != ACTIONABLE.
-  - AWS Tokyo case is OBSERVED_EXTERNAL, not a SignalForge historical replay.
-  - Controlled negative fixture is OBSERVED_IN_BUILD and explicitly not a historical replay.
-  - Validation Lab validates only price-derived 3-of-5 signals and is not proof of profitability.
-  - Coinbase provenance remains explicit and must never be relabelled as Binance.
-  - Recommendation output never grants execution authority.
-
-pr_and_merge_boundary:
-  pr_2_hardening: open_and_unmerged
-  rule: do_not_merge_PR_2_or_runtime_branch_without_explicit_user_authorization
-  runtime_branch_final_merge: pending
-  final_main_exact_sha_redeploy: required_after_explicit_final_merges
+next_TRACE_UI_UX_direction:
+  status: blocked_until_product_branch_upstream_and_runtime_verified
+  key_visual_object: Evidence_Gate_Refusal_Transition
+  must_show:
+    - evidence_arrival
+    - source_provenance
+    - quality_challenge
+    - source_exclusion
+    - coverage_confidence_change
+    - refusal_or_research_handoff
+    - authority_boundary
+    - resilience_benchmark
+    - MCP_agent_surface
+  must_not_regress_to:
+    - generic_crypto_dashboard
+    - price_cards_as_primary_story
+    - chart_density_as_ambition
+    - dark_navy_AI_slop
+    - ivory_paper
+    - generic_bento
 
 next_steps:
-  - create_or_update_stacked_runtime_PR_without_merging
-  - preserve_PR_2_review_boundary
-  - complete_official_X_Agent_submission_package
-  - verify_submission_files_SUBMISSION_submission_json_RIGHTS_source_verification
-  - after_explicit_final_merges_redeploy_exact_final_main_SHA
-  - rerun_all_six_public_runtime_gates_on_exact_final_main_SHA
+  - verify_current_branch_head_after_state_handover_commits
+  - ensure_final_docs_state_only_commits_do_not_change_application_checkpoint_semantics
+  - compare winning-intelligence-v2 against opeblow/signalforge main
+  - prepare upstream PR for Opeyemi without auto_merge
+  - after_Opeyemi_merge_capture_exact_upstream_main_SHA
+  - deploy_exact_merged_SHA_to_Cloudflare
+  - rerun_core_six_public_proof_calls
+  - verify_public_capabilities_endpoint
+  - verify_public_resilience_benchmark
+  - verify_public_MCP_server_discover_tools_list_and_at_least_one_tool_call
+  - then_start_TRACE_UI_UX_v2
+
+important_boundaries:
+  - do_not_claim_MCP_live_before_exact_deploy
+  - do_not_claim_resilience_benchmark_live_before_exact_deploy
+  - do_not_merge_upstream_without_Opeyemi_or_explicit_user_authorization
+  - do_not_add_execution_or_wallet_authority
+  - do_not_call_controlled_fixtures_historical_replays
+  - do_not_claim_full_five_channel_historical_validation
+  - do_not_relabel_Coinbase_evidence_as_Binance
 
 submission_ready: false
 submission_blockers:
-  - runtime_and_hardening_not_final_merged_with_explicit_authorization
-  - official_X_Agent_submission_package_not_complete
-  - final_main_exact_commit_not_redeployed_and_reverified
-
-final_state_target: SUBMISSION_READY
+  - winning_intelligence_v2_not_upstream_merged
+  - exact_merged_main_not_deployed
+  - new_public_MCP_and_resilience_proofs_not_recorded
+  - official_X_Agent_submission_package_not_finalized
