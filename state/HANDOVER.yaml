@@ -1,15 +1,15 @@
 project: signalforge
-handover_type: cloudflare_runtime_verified
+handover_type: cloudflare_runtime_verified_with_ui_consistency_patch
 branch: cloudflare-runtime
 stacked_on: evidence-failure-hardening
 hardening_pull_request: 2
 current_state: LIVE_RUNTIME_VERIFIED
 canonical_state: CLOUDFLARE_RUNTIME_VERIFIED_EXACT_COMMIT
 objective: >-
-  Preserve and advance the judge-hardened SignalForge build as one Cloudflare Worker
-  serving static Next.js judge assets and FastAPI proof endpoints from one public origin,
-  with exact-commit proof, fail-closed evidence handling, multi-provider public market data,
-  and no execution authority.
+  Preserve and advance the judge-hardened SignalForge build as one Cloudflare Worker serving
+  static Next.js judge assets and FastAPI proof endpoints from one public origin, with exact-commit
+  proof, fail-closed evidence handling, multi-provider public market data, no execution authority,
+  and UI language that never overstates the runtime evidence.
 verified_public_runtime:
   origin: https://signalforge.faadil-casecraft.workers.dev
   deployed_commit: 382139064dbaa7da52495e063a4ae07e88c85a12
@@ -22,9 +22,8 @@ verified_public_runtime:
   allow_mock_fallback: false
   execution_authorized: false
   note: >-
-    Later state/handover commits advance the cloudflare-runtime branch head but do not change
-    the verified production runtime. Production remains bound to deployed_commit until an
-    explicit redeploy is performed.
+    Branch commits after live verification are not production proof. Production remains bound to
+    deployed_commit until an explicit redeploy is performed.
 public_runtime_proof:
   health:
     http_status: 200
@@ -73,7 +72,6 @@ public_runtime_proof:
     data_provider: multi_provider_public
     kline_source: coinbase_exchange
     directional_accuracy: 0.543
-    limitation: exploratory_calibration_not_profitability_proof
   negative_path:
     http_status: 200
     ok: true
@@ -82,50 +80,77 @@ public_runtime_proof:
     recommendation: insufficient_evidence
     actionability: insufficient_evidence
     execution_authorized: false
-completed:
-  - Preserved all evidence/failure hardening from PR #2.
-  - Kept cloudflare-runtime isolated so PR #2 can continue review independently.
-  - Built a single Cloudflare Worker serving static Next.js assets and FastAPI routes from one origin.
-  - Added conditional Next.js static export and verified /judge export.
-  - Added Python Worker ASGI adapter and Cloudflare-only httpx2 aliasing.
-  - Explicitly bundled httpcore2 after first real deploy failed validation with ModuleNotFoundError.
-  - Removed an accidental UTF-8 BOM from pyproject.toml that broke pywrangler parsing.
-  - Aligned Pydantic to a Pyodide-compatible Cloudflare-only dependency set.
-  - Added Cloudflare targeted placement with aws:eu-central-1; observed runtime placement remote-FRA.
-  - Verified Binance Futures and Binance Spot both return HTTP 403 from Cloudflare runtime even under remote-FRA placement.
-  - Added evidence-preserving multi-provider fallback: Binance Futures -> Binance Spot -> Coinbase Exchange for ticker/klines.
-  - Kept funding and open interest unavailable rather than synthesized when Binance is blocked.
-  - Added explicit validation market-data fallback to avoid an indirect monkeypatch ambiguity.
-  - Verified Decision Packet and Signal Delta return HTTP 200 using live_partial Coinbase evidence.
-  - Verified bounded 120-day/3-day Validation Lab returns HTTP 200 using Coinbase klines.
-  - Verified controlled negative path remains fail-closed and is not represented as a historical replay.
-  - Verified exact deployed SHA through both /health and /.well-known/xagent-verification.json.
-  - Verified Cloudflare control plane has version eb5bcc9b-e5c0-4914-8ff2-9f82eecc0a39 at 100 percent traffic with the exact GIT_COMMIT binding.
-  - Used a forced-version override once to prove the exact version bundle, then repeated the full proof normally without override.
-  - Cloudflare Runtime Verify run 32 passed on deployed commit 382139064dbaa7da52495e063a4ae07e88c85a12.
-important_failure_history:
-  - >-
-    Initial real deployment failed before activation because httpx2 imported httpcore2 but httpcore2
-    was not packaged. Fixed by declaring httpcore2 directly and asserting it in CI.
-  - >-
-    A PowerShell write added a BOM to pyproject.toml and caused an invalid TOML dry-run failure.
-    Fixed by rewriting the file without BOM.
-  - >-
-    First activated Cloudflare runtime at d0f2bad5db52f85175eb74c558e4c47987e8c456 passed
-    judge/health/xagent/negative-path but Decision, Delta and Validation returned 502 because Binance
-    Futures access failed.
-  - >-
-    Exact error evidence showed Binance /fapi/v1/klines HTTP 403. Binance public Spot fallback also
-    returned HTTP 403. Targeted placement to remote-FRA did not change the Binance result.
-  - >-
-    Multi-provider Coinbase fallback restored Decision and Delta. Validation initially remained on an
-    old Binance-only path, then was explicitly routed through get_validation_klines and passed.
-  - >-
-    Immediately after the final deploy, normal requests briefly showed the prior commit/code shape.
-    Cloudflare deployments status showed the new version at 100 percent and the version binding was correct.
-    Forced-version requests proved the exact new bundle; shortly afterward normal public requests also
-    returned the exact commit and new validation provenance. Do not claim a specific Cloudflare internal
-    propagation mechanism because it was not independently established.
+runtime_failure_history:
+  - initial real deployment rejected because httpcore2 was absent from the Python Worker bundle; fixed by explicit dependency and CI packaging assertion.
+  - PowerShell introduced a UTF-8 BOM into pyproject.toml; fixed by clean rewrite.
+  - first activated Cloudflare runtime passed judge/health/xagent/negative-path but Decision, Delta and Validation returned 502 because Binance Futures returned HTTP 403.
+  - Binance public Spot also returned HTTP 403; targeted remote-FRA placement did not restore Binance access.
+  - Coinbase Exchange public fallback restored Decision and Delta while keeping funding/open-interest unavailable.
+  - Validation was explicitly routed through get_validation_klines and then passed.
+  - final runtime exact commit was proven first with a forced-version request and then normally without override; do not claim a specific internal Cloudflare propagation mechanism.
+ui_evidence_consistency_patch:
+  latest_code_checkpoint_before_state_files: eec4277d524ac977bbe3bba480d96f0c9290e2f2
+  production_deployed: false
+  cloudflare_verify_run: 42
+  cloudflare_verify_result: success
+  changes:
+    landing_page:
+      - hero now says agents verify before acting
+      - independent signals claim replaced with complementary evidence channels
+      - dynamic multi-provider provenance displayed
+      - authority boundary and execution_authorized_false made visible
+      - unavailable evidence shown as excluded instead of score-like values
+      - correct GitHub link and current-origin curl example
+    dashboard:
+      - Binance-only subtitle removed
+      - Signals Live renamed Markets Loaded
+      - provider, evidence coverage and per-source provenance exposed
+      - selected packet shows execution unauthorized
+    signal_intelligence:
+      - funding and open-interest unavailable states show EXCLUDED / not used in fusion
+      - old all-live-from-Binance copy removed
+      - observed source provenance displayed from runtime packet
+      - interpretation copy bounded to research/abstention behavior
+    agent_api:
+      - misleading uptime removed
+      - counters and latency explicitly labelled process-local
+    visual_system:
+      - restrained evidence-ledger grid texture added
+      - existing light visual system, responsive behavior and reduced-motion support preserved
+  changed_runtime_logic: false
+regression_lock:
+  file: tests/test_cloudflare_market_fallback.py
+  scenario: Binance_Futures_403_then_Binance_Spot_403_then_Coinbase_live
+  assertions:
+    - mode_live_partial
+    - provider_multi_provider_public
+    - ticker_coinbase_exchange
+    - klines_coinbase_exchange
+    - funding_unavailable
+    - open_interest_unavailable
+    - no_mock_sources
+    - no_synthetic_futures_data
+  workflow: .github/workflows/cloudflare-verify.yml
+  run: 42
+  result: success
+  test_step: Verify Binance-blocked multi-provider fallback
+ci_verification:
+  deployed_runtime_checkpoint:
+    run: 32
+    sha: 382139064dbaa7da52495e063a4ae07e88c85a12
+    result: success
+  UI_and_regression_checkpoint:
+    run: 42
+    sha: eec4277d524ac977bbe3bba480d96f0c9290e2f2
+    result: success
+    gates:
+      - static_frontend_build
+      - judge_export
+      - Cloudflare_dependency_resolution
+      - FastAPI_import_smoke
+      - Binance_blocked_Coinbase_fallback_regression
+      - pywrangler_dry_run_compile
+      - httpx2_httpcore2_packaging_assertion
 epistemic_rules:
   - Real failure > fake success.
   - Evidence before recommendation. Refusal before false confidence.
@@ -133,7 +158,7 @@ epistemic_rules:
   - Historical AWS Tokyo case is OBSERVED_EXTERNAL, not a SignalForge historical replay.
   - Controlled negative fixture is OBSERVED_IN_BUILD and explicitly not a historical replay.
   - Validation Lab validates only price-derived 3-of-5 signals and is not proof of profitability.
-  - Multi-provider fallback provenance must stay explicit; do not relabel Coinbase as Binance.
+  - Multi-provider fallback provenance must stay explicit; never relabel Coinbase as Binance.
   - AI/recommendation output never grants execution authority.
 controlled_deploy_trigger:
   workflow: .github/workflows/deploy-cloudflare.yml
@@ -141,32 +166,21 @@ controlled_deploy_trigger:
   automated_trigger: marker_file_change
   marker_file: .cloudflare-deploy-trigger
   behavior: rebuild -> smoke test -> dry run -> deploy exact SHA -> verify public runtime -> archive evidence
-ci_verification:
-  workflow: .github/workflows/cloudflare-verify.yml
-  deployed_commit_run: 32
-  deployed_commit: 382139064dbaa7da52495e063a4ae07e88c85a12
-  result: success
-  gates:
-    - static_frontend_build
-    - judge_export
-    - Cloudflare_dependency_resolution
-    - FastAPI_import_smoke
-    - pywrangler_dry_run_compile
-    - httpx2_httpcore2_packaging_assertion
 pr_and_merge_boundary:
   pr_2_hardening: open_and_unmerged_at_last_verified_context
   rule: do_not_merge_PR_2_or_runtime_branch_without_explicit_user_authorization
   runtime_branch_final_merge: pending
   final_main_exact_sha_redeploy: required_after_explicit_merges
 next_steps:
-  - Add a regression test for Binance 403 -> Coinbase live fallback -> no mock -> explicit provenance.
-  - Create or update the stacked runtime PR from cloudflare-runtime toward the reviewed hardening branch.
-  - Preserve PR #2 review boundary and do not merge automatically.
+  - Pull latest cloudflare-runtime locally and visually review the evidence-consistency UI patch.
+  - Run a local static-export/dry-run gate on the resulting exact branch head.
+  - If visual review passes, explicitly redeploy that exact reviewed branch SHA and rerun public proof before calling the new UI live.
+  - Create or update the stacked runtime PR toward the reviewed hardening branch without merging it automatically.
   - Complete the official X-Agent submission package including SUBMISSION.md, submission.json, RIGHTS.md, source and verification material.
   - After explicit final merges, deploy the exact final main SHA and rerun all six public proof calls.
-  - Archive the final runtime verification artifact for the exact submission SHA.
 submission_ready: false
 submission_blockers:
+  - UI_patch_not_yet_visually_reviewed_and_redeployed
   - hardening_and_runtime_not_final_merged_with_authorization
   - official_submission_package_not_complete
   - final_main_exact_commit_not_redeployed_and_reverified
