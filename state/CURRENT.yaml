@@ -135,10 +135,9 @@ runtime_failure_history:
     deployed_commit: 382139064dbaa7da52495e063a4ae07e88c85a12
     result: full_required_runtime_gate_passed
     note: >-
-      A short-lived dataplane/version observation initially showed the previous commit after deploy.
-      Cloudflare control-plane status showed version eb5bcc9b-e5c0-4914-8ff2-9f82eecc0a39 at 100 percent
-      with the correct GIT_COMMIT binding. Forced-version proof and subsequent normal public requests
-      both returned the exact deployed commit and the new validation provenance fields.
+      Forced-version proof and subsequent normal public requests both returned the exact deployed
+      commit and the new validation provenance fields. Do not claim a specific internal Cloudflare
+      propagation mechanism for the short-lived version observation immediately after deploy.
 implemented:
   - per_source_provenance
   - per_source_freshness_gate
@@ -149,70 +148,102 @@ implemented:
   - public_negative_path_endpoint
   - judge_negative_path_surface
   - bounded_validation_3_of_5
-  - rubric_to_qa_assurance_matrix
-  - adversarial_qa
-  - deterministic_demo_runbook
-  - real_failure_evidence_record
   - cloudflare_single_worker_architecture
   - nextjs_static_export_for_worker_assets
   - fastapi_asgi_python_worker_adapter
   - httpx2_cloudflare_runtime_adapter
   - explicit_httpcore2_cloudflare_dependency
-  - pyodide_compatible_pydantic_runtime
   - same_origin_static_and_api_surface
   - targeted_cloudflare_placement
-  - binance_futures_to_spot_fallback
   - independent_coinbase_public_market_fallback
   - explicit_validation_market_fallback
-  - commit_bound_cloudflare_deploy_workflow
   - automated_six_endpoint_runtime_verification
-  - runtime_evidence_artifact_retention_90_days
+  - cloudflare_fallback_regression_test
 ui_evidence_consistency_patch:
   verified_branch_checkpoint: eec4277d524ac977bbe3bba480d96f0c9290e2f2
   production_deployed: false
   cloudflare_verify_run: 42
   cloudflare_verify_result: success
-  scope:
-    - replace_binance_only_UI_claims_with_dynamic_multi_provider_provenance
-    - replace_agent_can_act_on_with_verify_before_acting
-    - replace_independent_signals_with_complementary_evidence_channels
-    - render_unavailable_funding_and_open_interest_as_excluded_not_score_50
-    - rename_signals_live_to_markets_loaded
-    - expose_coverage_provider_and_per_source_provenance_in_dashboard
-    - label_agent_api_usage_as_process_local_and_remove_misleading_uptime
-    - show_execution_authority_boundary_in_product_surfaces
-    - correct_GitHub_link_and_live_curl_origin
-    - add_restrained_evidence_ledger_grid_texture
   runtime_logic_changed: false
-  diff_since_last_canonical_state:
-    UI_files: 5
-    component_files: 1
-    test_files: 1
-    workflow_files: 1
-  regression_test:
-    file: tests/test_cloudflare_market_fallback.py
-    scenario: Binance_Futures_403_then_Binance_Spot_403_then_Coinbase_live
-    asserts_no_mock: true
-    asserts_no_synthetic_futures_data: true
-    asserts_explicit_coinbase_provenance: true
-    run_42_result: success
+trace_design_maximization_patch:
+  design_thesis: SEISMIC_MARKET_ATLAS
+  canonical_sentence: "Map the evidence. Refuse the fiction."
+  design_spec: docs/TRACE-DESIGN-SEISMIC-MARKET-ATLAS.md
+  verified_code_checkpoint: eaca1d4c65ba35ece7543920df7d8c26c645e532
+  cloudflare_verify_run: 66
+  cloudflare_verify_result: success
+  production_deployed: false
+  runtime_logic_changed: false
+  design_constraints:
+    - no_ivory_or_paper_aesthetic
+    - no_navy_black_AI_dashboard_default
+    - no_blue_SaaS_admin_template_language
+    - no_crypto_neon_terminal_cliche
+    - no_generic_bento_card_system
+    - semantic_color_only
+  lineage:
+    primary:
+      - seismology
+      - topographic_surveying
+      - field_instrumentation
+      - cartographic_contours
+      - scientific_observation_boards
+    anti_lineages:
+      - generic_fintech_dashboard
+      - dark_AI_agent_dashboard
+      - ivory_editorial
+      - glassmorphism
+      - retro_terminal_cosplay
+  new_primitives:
+    - web/src/components/atlas/AtlasPanel.tsx
+    - web/src/components/atlas/EvidenceRail.tsx
+    - web/src/components/atlas/ActionabilityGate.tsx
+  rebuilt_surfaces:
+    - landing_seismic_evidence_atlas
+    - dashboard_observation_field
+    - token_evidence_dossier
+    - judge_live_proof_dossier
+    - playground_agent_contract_interface
+    - strategies_calibration_lab
+    - desktop_instrument_index_navigation
+    - mobile_instrument_navigation
+  identity_changes:
+    - generic_blue_bolt_logo_removed
+    - cartographic_fault_line_mark_added
+    - favicon_aligned_to_new_mark
+    - mineral_oxidized_palette
+    - reduced_radius_and_low_shadow_material_system
+  motion_grammar:
+    - restrained_scan_pass
+    - evidence_status_pulse
+    - selection_state_shift
+    - global_reduced_motion_override_preserved
+  local_review_support:
+    default_dev_API_proxy: verified_cloudflare_runtime
+    override: API_URL
+    reason: avoid_empty_404_surfaces_when_reviewing_UI_without_local_FastAPI
+  known_local_review_issues_addressed:
+    - duplicate_react_stat_keys_in_agent_interface
+    - empty_local_UI_due_to_missing_local_API_process
+  exact_head_gates:
+    next_static_export: green
+    typescript: green
+    fallback_regression: green
+    fastapi_import: green
+    pywrangler_dry_run_compile: green
+    http_runtime_packaging: green
 verified_build_gate:
   deployed_runtime:
     workflow: Cloudflare Runtime Verify
     run: 32
     sha: 382139064dbaa7da52495e063a4ae07e88c85a12
     result: success
-  latest_branch_checkpoint:
+  trace_design_checkpoint:
     workflow: Cloudflare Runtime Verify
-    run: 42
-    sha: eec4277d524ac977bbe3bba480d96f0c9290e2f2
+    run: 66
+    sha: eaca1d4c65ba35ece7543920df7d8c26c645e532
     result: success
-    next_static_export: green
-    judge_asset_exported: true
-    fallback_regression: green
-    pyodide_dependencies: green
-    worker_dry_run_compile: green
-    HTTP_runtime_packaging: green
+    runtime_logic_changed: false
 controlled_deploy_trigger:
   workflow: .github/workflows/deploy-cloudflare.yml
   manual_dispatch_supported: true
@@ -221,14 +252,15 @@ controlled_deploy_trigger:
   behavior: rebuild_smoke_dry_run_deploy_exact_sha_verify_archive
 submission_ready: false
 submission_blockers:
-  - UI_patch_verified_but_not_yet_visually_reviewed_and_redeployed
+  - TRACE_design_checkpoint_verified_but_not_yet_visually_reviewed_and_redeployed
   - runtime_branch_not_final_reviewed_merged_main
   - hardening_pr_2_not_merged_without_user_authorization
   - final_official_xagent_submission_package_not_completed
   - final_main_exact_commit_redeploy_not_yet_performed
 pending:
-  - pull_latest_branch_and_visually_review_UI_evidence_consistency_patch
-  - if_UI_review_passes_redeploy_exact_reviewed_branch_SHA_and_rerun_public_gates
+  - pull_latest_cloudflare_runtime_and_review_TRACE_seismic_market_atlas_locally_against_live_runtime_data
+  - if_design_review_passes_run_local_static_export_and_pywrangler_dry_run
+  - redeploy_exact_reviewed_design_branch_SHA_and_rerun_six_public_gates
   - create_or_update_stacked_runtime_pr
   - preserve_PR_2_review_boundary_and_do_not_merge_without_authorization
   - complete_official_source_verification_rights_package
