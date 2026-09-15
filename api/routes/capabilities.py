@@ -14,7 +14,7 @@ async def capabilities():
     return {
         "ok": True,
         "service": "signalforge",
-        "job": "Pre-action evidence gate for market agents: verify evidence quality, return a bounded Decision Packet, or refuse when evidence is insufficient.",
+        "job": "Pre-action evidence gate for market agents: verify evidence quality, reveal decision fragility, return a bounded Decision Packet, or refuse when evidence is insufficient.",
         "contract_version": DECISION_CONTRACT_VERSION,
         "policy_version": POLICY_VERSION,
         "agent_native": {
@@ -33,12 +33,20 @@ async def capabilities():
             "external_execution_authority_required": True,
         },
         "state_model": {
-            "decision_packet": "stateless_live_read",
+            "decision_packet": "stateless_live_read_with_tamper_evident_receipt",
             "stateless_compare": "caller_supplied_baseline",
             "delta_convenience_endpoint": "process_local_memory_non_durable",
+            "decision_stress": "bounded_counterfactual_dropout_of_observed_evidence",
+            "receipt_verification": "stateless_no_market_fetch",
             "validation": "stateless_bounded_historical_calibration",
             "resilience_benchmark": "deterministic_controlled_policy_conformance",
             "mcp": "stateless_request_response",
+        },
+        "differentiators": {
+            "lineage_concentration": "Maps each available signal to raw inputs and providers without claiming statistical independence.",
+            "decision_fragility": "Measures refusal boundaries under single-channel and provider dropouts without inventing replacement values.",
+            "recovery_requirements": "Returns necessary recovery conditions while explicitly refusing to claim they guarantee a directional handoff.",
+            "decision_receipt": "Binds material Decision Packet fields to a SHA-256 digest for later integrity verification.",
         },
         "tools": [
             {
@@ -47,7 +55,7 @@ async def capabilities():
                 "path": "/api/v1/decision/{token}",
                 "mcp_tool": "get_decision_packet",
                 "input": {"token": "uppercase asset symbol, 2-10 alphanumeric characters"},
-                "output": "Evidence-bound Decision Packet with provenance, coverage, confidence, invalidation and next action.",
+                "output": "Evidence-bound Decision Packet with provenance, lineage concentration, recovery requirements, receipt, and safe next action.",
                 "side_effects": "none",
             },
             {
@@ -57,6 +65,24 @@ async def capabilities():
                 "mcp_tool": "compare_decision_packet",
                 "input": {"token": "asset symbol", "body": "prior SignalForge Decision Packet"},
                 "output": "Stateless material-change comparison against a fresh live packet.",
+                "side_effects": "none",
+            },
+            {
+                "name": "stress_test_decision",
+                "method": "GET",
+                "path": "/api/v1/decision/{token}/stress",
+                "mcp_tool": "stress_test_decision",
+                "input": {"token": "asset symbol"},
+                "output": "Single-channel and provider-dropout fragility analysis over currently observed evidence.",
+                "side_effects": "none",
+            },
+            {
+                "name": "verify_decision_receipt",
+                "method": "POST",
+                "path": "/api/v1/decision/verify-receipt",
+                "mcp_tool": "verify_decision_receipt",
+                "input": {"body": "Decision Packet containing its embedded receipt"},
+                "output": "SHA-256 integrity verification without a market-data fetch.",
                 "side_effects": "none",
             },
             {
@@ -89,5 +115,6 @@ async def capabilities():
             "hold_band": "OBSERVE_ONLY",
             "actionable_research": "RESEARCH_HANDOFF",
             "all_paths_execution_authorized": False,
+            "restored_availability_guarantees_handoff": False,
         },
     }
