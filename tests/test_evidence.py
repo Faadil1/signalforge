@@ -36,6 +36,7 @@ def test_resilience_benchmark_conforms_across_failure_classes() -> None:
 
     assert payload["ok"] is True
     assert payload["scope"] == "controlled_policy_conformance_not_market_accuracy"
+    assert payload["fixture_epoch"] == "2026-09-15T00:00:00+00:00"
     assert payload["not_a_historical_replay"] is True
     assert payload["summary"]["passed"] == 4
     assert payload["summary"]["total"] == 4
@@ -50,6 +51,10 @@ def test_resilience_benchmark_conforms_across_failure_classes() -> None:
     assert by_id["mock-price-evidence-removed"]["observed"]["available_signals"] == 0
     assert all(case["observed"]["execution_authorized"] is False for case in payload["scenarios"])
     assert all(case["passed"] is True for case in payload["scenarios"])
+
+
+def test_resilience_benchmark_is_repeatable() -> None:
+    assert build_resilience_benchmark() == build_resilience_benchmark()
 
 
 def test_resilience_benchmark_is_public_api_capability() -> None:
