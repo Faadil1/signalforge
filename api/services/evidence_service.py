@@ -28,14 +28,7 @@ REAL_FAILURE_CASE = {
 }
 
 
-def _controlled_bundle() -> RawSignalBundle:
-    """Represent the state *after* freshness gating removed degraded evidence.
-
-    The fixture intentionally preserves the stale/unavailable classifications in
-    source_meta while omitting those values from the usable bundle. This mirrors
-    the contract enforced by BinancePublicClient before signal fusion.
-    """
-    now = datetime.now(UTC)
+def _base_klines(now: datetime) -> list[dict]:
     closes = [50000.0 + i * 50.0 for i in range(30)]
     klines = []
     for i, close in enumerate(closes):
@@ -50,34 +43,125 @@ def _controlled_bundle() -> RawSignalBundle:
                 "volume": 1000.0 + i * 5,
             }
         )
+    return klines
 
+
+def _quality_meta(
+    now: datetime,
+    *,
+    healthy: list[str],
+    stale: list[str] | None = None,
+    unavailable: list[str] | None = None,
+    inconsistent: list[str] | None = None,
+    mock: list[str] | None = None,
+    freshness: dict | None = None,
+) -> dict:
+    return {
+        "mode": "live" if len(healthy) >= 4 else "live_partial",
+        "provider": "controlled_policy_fixture",
+        "fixture": True,
+        "historical_replay": False,
+        "freshness": freshness or {},
+        "quality_summary": {
+            "healthy_sources": healthy,
+            "mock_sources": mock or [],
+            "stale_sources": stale or [],
+            "unavailable_sources": unavailable or [],
+            "unknown_sources": [],
+            "inconsistent_sources": inconsistent or [],
+        },
+        "observed_at": now.isoformat(),
+    }
+
+
+def _full_evidence_bundle() -> RawSignalBundle:
+    now = datetime.now(UTC)
+    klines = _base_klines(now)
+    last_price = float(klines[-1]["close"])
     return RawSignalBundle(
         symbol="BTC",
         klines=klines,
-        ticker={"last_price": closes[-1], "volume": 25000.0, "price_change_pct": 1.1},
+        ticker={"last_price": last_price, "volume": 25000.0, "price_change_pct": 1.1},
+        open_interest={"open_interest": 15000.0, "mark_price": last_price},
+        funding={"last_funding_rate": -0.0002},
+        source_meta=_quality_meta(
+            now,
+            healthy=["ticker", "klines", "open_interest", "funding"],
+            freshness={
+                "ticker": {"status": "fresh", "age_seconds": 5, "max_age_seconds": 300},
+                "klines": {"status": "fresh", "age_seconds": 120, "max_age_seconds": 129600},
+                "open_interest": {"status": "fresh", "age_seconds": 20, "max_age_seconds": 300},
+                "funding": {"status": "fresh", "age_seconds": 60, "max_age_seconds": 900},
+            },
+        ),
+    )
+
+
+def _controlled_bundle() -> RawSignalBundle:
+    """State after freshness gating removes stale/unavailable evidence."""
+    now = datetime.now(UTC)
+    klines = _base_klines(now)
+    last_price = float(klines[-1]["close"])
+    return RawSignalBundle(
+        symbol="BTC",
+        klines=klines,
+        ticker={"last_price": last_price, "volume": 25000.0, "price_change_pct": 1.1},
         open_interest={},
         funding=None,
-        source_meta={
-            "mode": "live_partial",
-            "provider": "controlled_failure_fixture",
-            "fixture": True,
-            "historical_replay": False,
-            "freshness": {
+        source_meta=_quality_meta(
+            now,
+            healthy=["klines", "ticker"],
+            stale=["open_interest"],
+            unavailable=["funding"],
+            freshness={
                 "ticker": {"status": "fresh", "age_seconds": 5, "max_age_seconds": 300},
                 "klines": {"status": "fresh", "age_seconds": 120, "max_age_seconds": 129600},
                 "open_interest": {"status": "stale", "age_seconds": 1800, "max_age_seconds": 300},
                 "funding": {"status": "unavailable", "age_seconds": None, "max_age_seconds": 900},
             },
-            "quality_summary": {
-                "healthy_sources": ["klines", "ticker"],
-                "mock_sources": [],
-                "stale_sources": ["open_interest"],
-                "unavailable_sources": ["funding"],
-                "unknown_sources": [],
-                "inconsistent_sources": [],
+        ),
+    )
+
+
+def _inconsistent_ticker_removed_bundle() -> RawSignalBundle:
+    now = datetime.now(UTC)
+    return RawSignalBundle(
+        symbol="BTC",
+        klines=_base_klines(now),
+        ticker={},
+        open_interest={},
+        funding=None,
+        source_meta=_quality_meta(
+            now,
+            healthy=["klines"],
+            unavailable=["open_interest", "funding"],
+            inconsistent=["ticker"],
+            freshness={
+                "klines": {"status": "fresh", "age_seconds": 120, "max_age_seconds": 129600},
+                "ticker": {"status": "inconsistent", "age_seconds": 4, "max_age_seconds": 300},
             },
-            "observed_at": now.isoformat(),
-        },
+        ),
+    )
+
+
+def _mock_removed_bundle() -> RawSignalBundle:
+    now = datetime.now(UTC)
+    return RawSignalBundle(
+        symbol="BTC",
+        klines=[],
+        ticker={},
+        open_interest={},
+        funding=None,
+        source_meta=_quality_meta(
+            now,
+            healthy=[],
+            unavailable=["open_interest", "funding"],
+            mock=["ticker", "klines"],
+            freshness={
+                "ticker": {"status": "mock", "age_seconds": None, "max_age_seconds": 300},
+                "klines": {"status": "mock", "age_seconds": None, "max_age_seconds": 129600},
+            },
+        ),
     )
 
 
@@ -107,4 +191,94 @@ def build_negative_path_evidence() -> dict:
             },
             "passed": passed,
         },
+    }
+
+
+def build_resilience_benchmark() -> dict:
+    """Deterministic policy-conformance benchmark, not a market-accuracy claim."""
+    cases = [
+        {
+            "id": "full-five-channel-context",
+            "failure_class": "none",
+            "bundle": _full_evidence_bundle(),
+            "expected_actionability": "not_insufficient_evidence",
+            "expected_available_signals": 5,
+        },
+        {
+            "id": "stale-oi-unavailable-funding",
+            "failure_class": "stale+unavailable",
+            "bundle": _controlled_bundle(),
+            "expected_actionability": "insufficient_evidence",
+            "expected_available_signals": 3,
+        },
+        {
+            "id": "inconsistent-ticker-removed",
+            "failure_class": "inconsistent",
+            "bundle": _inconsistent_ticker_removed_bundle(),
+            "expected_actionability": "insufficient_evidence",
+            "expected_available_signals": 1,
+        },
+        {
+            "id": "mock-price-evidence-removed",
+            "failure_class": "mock",
+            "bundle": _mock_removed_bundle(),
+            "expected_actionability": "insufficient_evidence",
+            "expected_available_signals": 0,
+        },
+    ]
+
+    results = []
+    for case in cases:
+        result = payload_from_bundle(case["bundle"])
+        expected_actionability = case["expected_actionability"]
+        actionability_passed = (
+            result["actionability"] != "insufficient_evidence"
+            if expected_actionability == "not_insufficient_evidence"
+            else result["actionability"] == expected_actionability
+        )
+        passed = (
+            actionability_passed
+            and result["available_signals"] == case["expected_available_signals"]
+            and result["execution_authorized"] is False
+        )
+        results.append(
+            {
+                "id": case["id"],
+                "failure_class": case["failure_class"],
+                "expected": {
+                    "actionability": expected_actionability,
+                    "available_signals": case["expected_available_signals"],
+                    "execution_authorized": False,
+                },
+                "observed": {
+                    "actionability": result["actionability"],
+                    "recommendation": result["recommendation"],
+                    "available_signals": result["available_signals"],
+                    "coverage": result["coverage"],
+                    "confidence": result["confidence"],
+                    "execution_authorized": result["execution_authorized"],
+                    "quality_summary": result.get("source_meta", {}).get("quality_summary", {}),
+                },
+                "passed": passed,
+            }
+        )
+
+    passed_count = sum(1 for item in results if item["passed"])
+    total = len(results)
+    return {
+        "ok": passed_count == total,
+        "benchmark": "evidence_resilience_policy_conformance_v1",
+        "scope": "controlled_policy_conformance_not_market_accuracy",
+        "not_a_historical_replay": True,
+        "principle": "Degraded evidence must fail closed before confidence becomes fiction.",
+        "scenarios": results,
+        "summary": {
+            "passed": passed_count,
+            "total": total,
+            "policy_conformance_rate": round(passed_count / total, 3) if total else 0.0,
+        },
+        "limitations": [
+            "This benchmark measures deterministic policy behavior, not trading profitability or predictive accuracy.",
+            "Controlled fixtures represent evidence states after source-quality gating; they are not historical market replays.",
+        ],
     }
