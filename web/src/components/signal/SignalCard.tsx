@@ -2,13 +2,6 @@ import { cn } from "@/lib/utils";
 
 type Tone = "positive" | "neutral" | "negative" | "unavailable";
 
-const TONE_BAR: Record<Tone, string> = {
-  positive: "bg-positive",
-  neutral: "bg-text-secondary",
-  negative: "bg-negative",
-  unavailable: "bg-text-subtle/40",
-};
-
 const TONE_TEXT: Record<Tone, string> = {
   positive: "text-positive",
   neutral: "text-text-secondary",
@@ -45,53 +38,28 @@ export function SignalCard({
   const title = name.replace(/_/g, " ");
 
   return (
-    <div className={cn("card p-4", isUnavailable && "border-dashed bg-surface-secondary/40")}>
-      <div className="flex items-start justify-between gap-3">
+    <div className={cn("border-l-2 border-y border-r border-border bg-surface/70 px-3 py-3", isUnavailable ? "border-l-text-subtle border-dashed" : "border-l-brand")}>
+      <div className="grid grid-cols-[1fr_auto] gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-text">{title}</p>
-          {isUnavailable ? (
-            <p className="mt-0.5 text-xs font-medium text-text-subtle">Unavailable · excluded from fusion</p>
-          ) : direction ? (
-            <p className={cn("mt-0.5 text-xs font-medium capitalize", TONE_TEXT[tone])}>{direction}</p>
-          ) : null}
+          <p className="atlas-micro">evidence stratum</p>
+          <p className="mt-1 text-sm font-semibold text-text">{title}</p>
+          {explanation && <p className="mt-2 text-[12px] leading-5 text-text-secondary">{explanation}</p>}
         </div>
-        <div className={cn("font-mono text-lg font-bold tabular-nums", TONE_TEXT[tone])}>
-          {isUnavailable ? "EXCLUDED" : value != null ? value.toFixed(0) : "—"}
+        <div className="text-right">
+          <p className={cn("font-mono text-xl font-semibold tabular-nums", TONE_TEXT[tone])}>{isUnavailable ? "—" : value != null ? value.toFixed(0) : "—"}</p>
+          <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.13em] text-text-subtle">{isUnavailable ? "excluded" : direction || "observed"}</p>
         </div>
       </div>
 
-      {isUnavailable ? (
-        <div className="mt-3 flex items-center gap-2 text-[11px] uppercase tracking-wider text-text-subtle">
-          <span className="h-px flex-1 bg-border" />
-          not used in composite
-          <span className="h-px flex-1 bg-border" />
-        </div>
-      ) : (
-        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-secondary">
-          <div
-            className={cn("h-full rounded-full transition-all duration-300", TONE_BAR[tone])}
-            style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
-          />
-        </div>
-      )}
-
-      {explanation && <p className="mt-3 text-[13px] leading-relaxed text-text-secondary">{explanation}</p>}
-
-      {!isUnavailable && (confidence != null || weight != null) && (
-        <div className="mt-3 flex items-center gap-4 text-xs text-text-subtle">
-          {confidence != null && (
-            <span>
-              Confidence{" "}
-              <span className="font-mono tabular-nums text-text-secondary">{(confidence * 100).toFixed(0)}%</span>
-            </span>
-          )}
-          {weight != null && (
-            <span>
-              Weight <span className="font-mono tabular-nums text-text-secondary">{Math.round(weight * 100)}%</span>
-            </span>
-          )}
-        </div>
-      )}
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-2">
+        <span className={isUnavailable ? "atlas-stamp atlas-stamp-refused" : "atlas-stamp atlas-stamp-live"}>{isUnavailable ? "NOT USED" : "USED IN FUSION"}</span>
+        {!isUnavailable && (
+          <div className="flex gap-3 font-mono text-[9px] uppercase tracking-[0.11em] text-text-subtle">
+            {confidence != null && <span>conf {Math.round(confidence * 100)}%</span>}
+            {weight != null && <span>weight {Math.round(weight * 100)}%</span>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
