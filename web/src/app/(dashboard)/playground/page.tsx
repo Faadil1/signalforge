@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clsx } from "clsx";
-import { Braces, CheckCircle2, RefreshCw, Send, TerminalSquare } from "lucide-react";
+import { Braces, CheckCircle2, RefreshCw, Send, Terminal } from "lucide-react";
 import { safeJson } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { AtlasPanel } from "@/components/atlas/AtlasPanel";
@@ -123,7 +123,7 @@ export default function PlaygroundPage() {
         </AtlasPanel>
 
         <AtlasPanel label="Response Buffer" code="API-C" tone={status != null && status >= 200 && status < 300 ? "live" : status == null ? "default" : "critical"} meta={status == null ? "IDLE" : `${status} / ${latency ?? 0}MS`} className="xl:col-span-4">
-          {response ? <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap break-all border border-border bg-[#202b27] p-4 font-mono text-[10px] leading-5 text-[#dbe6e1]">{response}</pre> : <div className="flex min-h-[280px] items-center justify-center text-center"><div><TerminalSquare className="mx-auto h-6 w-6 text-text-subtle" /><p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">response buffer empty</p></div></div>}
+          {response ? <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap break-all border border-border bg-[#202b27] p-4 font-mono text-[10px] leading-5 text-[#dbe6e1]">{response}</pre> : <div className="flex min-h-[280px] items-center justify-center text-center"><div><Terminal className="mx-auto h-6 w-6 text-text-subtle" /><p className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-text-subtle">response buffer empty</p></div></div>}
           {status != null && <div className="mt-3 flex items-center gap-2 font-mono text-[10px] text-text-subtle">{status >= 200 && status < 300 && <CheckCircle2 className="h-3.5 w-3.5 text-positive" />}HTTP {status} · {latency}ms</div>}
         </AtlasPanel>
       </div>
