@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 from models.signal import RawSignalBundle
 from services.signal_fusion import payload_from_bundle
 
+BENCHMARK_EPOCH = datetime(2026, 9, 15, 0, 0, 0, tzinfo=UTC)
+
 REAL_FAILURE_CASE = {
     "id": "aws-tokyo-binance-2025-04-15",
     "date": "2025-04-15",
@@ -74,8 +76,8 @@ def _quality_meta(
     }
 
 
-def _full_evidence_bundle() -> RawSignalBundle:
-    now = datetime.now(UTC)
+def _full_evidence_bundle(now: datetime | None = None) -> RawSignalBundle:
+    now = now or datetime.now(UTC)
     klines = _base_klines(now)
     last_price = float(klines[-1]["close"])
     return RawSignalBundle(
@@ -97,9 +99,9 @@ def _full_evidence_bundle() -> RawSignalBundle:
     )
 
 
-def _controlled_bundle() -> RawSignalBundle:
+def _controlled_bundle(now: datetime | None = None) -> RawSignalBundle:
     """State after freshness gating removes stale/unavailable evidence."""
-    now = datetime.now(UTC)
+    now = now or datetime.now(UTC)
     klines = _base_klines(now)
     last_price = float(klines[-1]["close"])
     return RawSignalBundle(
@@ -123,8 +125,8 @@ def _controlled_bundle() -> RawSignalBundle:
     )
 
 
-def _inconsistent_ticker_removed_bundle() -> RawSignalBundle:
-    now = datetime.now(UTC)
+def _inconsistent_ticker_removed_bundle(now: datetime | None = None) -> RawSignalBundle:
+    now = now or datetime.now(UTC)
     return RawSignalBundle(
         symbol="BTC",
         klines=_base_klines(now),
@@ -144,8 +146,8 @@ def _inconsistent_ticker_removed_bundle() -> RawSignalBundle:
     )
 
 
-def _mock_removed_bundle() -> RawSignalBundle:
-    now = datetime.now(UTC)
+def _mock_removed_bundle(now: datetime | None = None) -> RawSignalBundle:
+    now = now or datetime.now(UTC)
     return RawSignalBundle(
         symbol="BTC",
         klines=[],
@@ -200,28 +202,28 @@ def build_resilience_benchmark() -> dict:
         {
             "id": "full-five-channel-context",
             "failure_class": "none",
-            "bundle": _full_evidence_bundle(),
+            "bundle": _full_evidence_bundle(BENCHMARK_EPOCH),
             "expected_actionability": "not_insufficient_evidence",
             "expected_available_signals": 5,
         },
         {
             "id": "stale-oi-unavailable-funding",
             "failure_class": "stale+unavailable",
-            "bundle": _controlled_bundle(),
+            "bundle": _controlled_bundle(BENCHMARK_EPOCH),
             "expected_actionability": "insufficient_evidence",
             "expected_available_signals": 3,
         },
         {
             "id": "inconsistent-ticker-removed",
             "failure_class": "inconsistent",
-            "bundle": _inconsistent_ticker_removed_bundle(),
+            "bundle": _inconsistent_ticker_removed_bundle(BENCHMARK_EPOCH),
             "expected_actionability": "insufficient_evidence",
             "expected_available_signals": 1,
         },
         {
             "id": "mock-price-evidence-removed",
             "failure_class": "mock",
-            "bundle": _mock_removed_bundle(),
+            "bundle": _mock_removed_bundle(BENCHMARK_EPOCH),
             "expected_actionability": "insufficient_evidence",
             "expected_available_signals": 0,
         },
@@ -269,6 +271,7 @@ def build_resilience_benchmark() -> dict:
         "ok": passed_count == total,
         "benchmark": "evidence_resilience_policy_conformance_v1",
         "scope": "controlled_policy_conformance_not_market_accuracy",
+        "fixture_epoch": BENCHMARK_EPOCH.isoformat(),
         "not_a_historical_replay": True,
         "principle": "Degraded evidence must fail closed before confidence becomes fiction.",
         "scenarios": results,
@@ -279,6 +282,6 @@ def build_resilience_benchmark() -> dict:
         },
         "limitations": [
             "This benchmark measures deterministic policy behavior, not trading profitability or predictive accuracy.",
-            "Controlled fixtures represent evidence states after source-quality gating; they are not historical market replays.",
+            "Controlled fixtures use a fixed synthetic fixture epoch for reproducibility and are not historical market replays.",
         ],
     }
