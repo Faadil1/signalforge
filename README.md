@@ -108,6 +108,8 @@ SignalForge exposes the same bounded product contract through two read-only surf
 
 Both surfaces preserve `execution_authorized: false`.
 
+**Deployment note:** the MCP/stateless-compare/resilience additions described in this branch must not be treated as public production capabilities until `/health` reports the exact source commit that contains them and the public probes pass.
+
 ### MCP transport
 
 ```http
@@ -233,7 +235,7 @@ A deterministic policy-conformance suite checks whether SignalForge preserves th
 - inconsistent ticker removed before fusion;
 - mock price evidence removed before fusion.
 
-The benchmark reports a `policy_conformance_rate`. It measures **policy behavior**, not trading profitability, predictive accuracy or historical replay performance.
+The benchmark uses a fixed fixture epoch for reproducibility and reports a `policy_conformance_rate`. It measures **policy behavior**, not trading profitability, predictive accuracy or historical replay performance.
 
 Agent integration details: [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md).
 
@@ -304,7 +306,7 @@ The public deployment must expose the exact reviewed Git commit.
 
 The commit is read from `GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA`, or `CF_PAGES_COMMIT_SHA`. `/health` reports `degraded` when no valid 40-character commit binding is available.
 
-The production Cloudflare Worker serves the static Next.js application and FastAPI REST/MCP proof surface from one public origin.
+When a source revision containing the MCP/productization changes is exact-commit deployed, the Cloudflare Worker can serve the static Next.js application and FastAPI REST/MCP surfaces from one public origin. Until then, the previously verified production SHA remains the runtime truth.
 
 ---
 
