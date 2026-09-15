@@ -1,0 +1,148 @@
+diff --git a/api/routes/decision.py b/api/routes/decision.py
+--- a/api/routes/decision.py
++++ b/api/routes/decision.py
+@@
+ from services.errors import INVALID_TOKEN, error_token_payload
+ from services.rate_limit import rate_limit
++from services.recovery_service import get_recovery_plan
+ from services.symbols import is_valid_token, normalize_token
+@@
+ @router.get("/decision/{token}", dependencies=[Depends(_decision_rate_limited)])
+ async def decision(token: str):
+@@
+     return packet
++
++
++@router.get("/decision/{token}/recovery-plan", dependencies=[Depends(_decision_rate_limited)])
++async def decision_recovery_plan(token: str):
++    """Explain a refusal and the evidence reacquisition work required before reevaluation."""
++    plan = await get_recovery_plan(_symbol_or_422(token))
++    if not plan.get("ok"):
++        raise HTTPException(status_code=502, detail=plan)
++    return plan
+ 
+ 
+ @router.get("/decision/{token}/delta", dependencies=[Depends(_decision_rate_limited)])
+diff --git a/api/routes/capabilities.py b/api/routes/capabilities.py
+--- a/api/routes/capabilities.py
++++ b/api/routes/capabilities.py
+@@
+         "state_model": {
+             "decision_packet": "stateless_live_read",
++            "refusal_recovery": "stateless_live_read_with_content_addressed_receipt",
+             "stateless_compare": "caller_supplied_baseline",
+@@
+         "tools": [
+             {
+                 "name": "get_decision_packet",
+@@
+                 "side_effects": "none",
+             },
++            {
++                "name": "plan_evidence_recovery",
++                "method": "GET",
++                "path": "/api/v1/decision/{token}/recovery-plan",
++                "mcp_tool": "plan_evidence_recovery",
++                "input": {"token": "asset symbol"},
++                "output": "Typed refusal reasons, evidence debt, bounded reacquisition candidates, reevaluation conditions and a stable refusal receipt. Never guarantees actionability.",
++                "side_effects": "none",
++            },
+             {
+                 "name": "compare_decision_packet",
+@@
+         "safe_failure_contract": {
+             "insufficient_evidence": "REFRESH_EVIDENCE",
++            "refusal_recovery": "REACQUIRE_MINIMUM_EVIDENCE_THEN_REEVALUATE",
+             "hold_band": "OBSERVE_ONLY",
+             "actionable_research": "RESEARCH_HANDOFF",
++            "recovery_guarantees_actionability": False,
+             "all_paths_execution_authorized": False,
+         },
+diff --git a/api/routes/mcp.py b/api/routes/mcp.py
+--- a/api/routes/mcp.py
++++ b/api/routes/mcp.py
+@@
+ from services.evidence_service import build_negative_path_evidence, build_resilience_benchmark
+ from services.rate_limit import rate_limit
++from services.recovery_service import get_recovery_plan
+ from services.symbols import is_valid_token, normalize_token
+@@
+-SERVER_INFO = {"name": "signalforge", "version": "0.4.0"}
++SERVER_INFO = {"name": "signalforge", "version": "0.5.0"}
+@@
+     {
+         "name": "get_decision_packet",
+@@
+         "annotations": READ_ONLY_ANNOTATIONS,
+     },
++    {
++        "name": "plan_evidence_recovery",
++        "title": "Plan Evidence Recovery After Refusal",
++        "description": (
++            "Explain why a Decision Packet is refused, quantify evidence debt, identify bounded source "
++            "reacquisition candidates, and return a stable refusal receipt. Recovery never guarantees actionability."
++        ),
++        "inputSchema": {
++            "type": "object",
++            "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}},
++            "required": ["token"],
++            "additionalProperties": False,
++        },
++        "annotations": READ_ONLY_ANNOTATIONS,
++    },
+     {
+         "name": "compare_decision_packet",
+@@
+     if name == "get_decision_packet":
+@@
+         result = await get_decision_packet(token)
+         return result, not bool(result.get("ok"))
++
++    if name == "plan_evidence_recovery":
++        token = _normalize_valid_token(arguments.get("token"))
++        if token is None:
++            return {"code": "INVALID_TOKEN", "message": "token must match ^[A-Z0-9]{2,10}$"}, True
++        result = await get_recovery_plan(token)
++        return result, not bool(result.get("ok"))
+@@
+                 "instructions": (
+-                    "SignalForge is a read-only pre-action evidence gate. Use get_decision_packet first; "
+-                    "if it refuses, refresh evidence rather than inventing conviction. No tool authorizes execution."
++                    "SignalForge is a read-only pre-action evidence gate. Use get_decision_packet first. "
++                    "If it refuses, use plan_evidence_recovery to identify bounded reacquisition work before reevaluation. "
++                    "Never invent missing evidence and never treat recovery as execution authority."
+                 ),
+diff --git a/tests/test_mcp.py b/tests/test_mcp.py
+--- a/tests/test_mcp.py
++++ b/tests/test_mcp.py
+@@
+     assert result["cacheScope"] == "public"
+     assert result["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] == "signalforge"
++    assert "plan_evidence_recovery" in result["instructions"]
+@@
+     assert set(tools) == {
+         "get_decision_packet",
++        "plan_evidence_recovery",
+         "compare_decision_packet",
+         "validate_price_signals",
+diff --git a/tests/test_capabilities.py b/tests/test_capabilities.py
+--- a/tests/test_capabilities.py
++++ b/tests/test_capabilities.py
+@@
+     assert body["authority_boundary"]["execution_authorized"] is False
++    assert body["state_model"]["refusal_recovery"] == "stateless_live_read_with_content_addressed_receipt"
+     assert body["state_model"]["stateless_compare"] == "caller_supplied_baseline"
+@@
+     assert all(tool["mcp_tool"] for tool in body["tools"])
++    assert any(tool["name"] == "plan_evidence_recovery" for tool in body["tools"])
++    assert body["safe_failure_contract"]["recovery_guarantees_actionability"] is False
+     assert body["safe_failure_contract"]["all_paths_execution_authorized"] is False
+diff --git a/.github/workflows/cloudflare-verify.yml b/.github/workflows/cloudflare-verify.yml
+--- a/.github/workflows/cloudflare-verify.yml
++++ b/.github/workflows/cloudflare-verify.yml
+@@
+             tests/test_decision.py \
+             tests/test_evidence.py \
++            tests/test_recovery.py \
+             tests/test_capabilities.py \
+             tests/test_mcp.py \
