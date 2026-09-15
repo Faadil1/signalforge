@@ -78,6 +78,8 @@ def test_tools_list_is_deterministic_and_read_only() -> None:
     assert set(tools) == {
         "get_decision_packet",
         "compare_decision_packet",
+        "stress_test_decision",
+        "verify_decision_receipt",
         "validate_price_signals",
         "inspect_negative_path",
         "run_evidence_resilience_benchmark",
@@ -155,6 +157,22 @@ def test_resilience_benchmark_tool_returns_structured_conformance_result() -> No
     assert result["structuredContent"]["summary"]["total"] == 4
     assert result["structuredContent"]["summary"]["policy_conformance_rate"] == 1.0
     assert result["structuredContent"]["not_a_historical_replay"] is True
+
+
+def test_receipt_tool_fails_closed_when_receipt_is_missing() -> None:
+    name = "verify_decision_receipt"
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers=_headers("tools/call", name),
+            json=_request("tools/call", name=name, arguments={"packet": {"token": "BTC"}}),
+        )
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is True
+    assert result["structuredContent"]["ok"] is False
+    assert result["structuredContent"]["error"]["code"] == "MISSING_RECEIPT"
 
 
 def test_unknown_tool_is_invalid_params() -> None:
