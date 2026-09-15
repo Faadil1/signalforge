@@ -35,7 +35,12 @@ def _evidence(payload: dict) -> dict:
         if not signal.get("available"):
             continue
         value = float(signal.get("value", 50.0))
-        item = {"name": signal.get("name"), "value": value, "confidence": signal.get("confidence"), "reason": signal.get("reason")}
+        item = {
+            "name": signal.get("name"),
+            "value": value,
+            "confidence": signal.get("confidence"),
+            "reason": signal.get("reason"),
+        }
         if bullish:
             target = supporting if value >= 55 else contradicting if value <= 45 else neutral
         elif bearish:
@@ -60,7 +65,17 @@ def _invalidation(payload: dict) -> list[str]:
 
 
 def _snapshot_id(packet: dict) -> str:
-    canonical = json.dumps({"token": packet["token"], "timestamp": packet["timestamp"], "score": packet["score"], "confidence": packet["confidence"], "evidence": packet["evidence"]}, sort_keys=True, separators=(",", ":"))
+    canonical = json.dumps(
+        {
+            "token": packet["token"],
+            "timestamp": packet["timestamp"],
+            "score": packet["score"],
+            "confidence": packet["confidence"],
+            "evidence": packet["evidence"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
@@ -102,7 +117,19 @@ async def get_signal_delta(token: str) -> dict:
     previous = _last_decisions.get(symbol)
     _last_decisions[symbol] = deepcopy(current)
     if previous is None:
-        return {"ok": True, "token": symbol, "baseline_established": True, "material_change": False, "current_snapshot_id": current["snapshot_id"], "previous_snapshot_id": None, "score_delta": 0.0, "changed_drivers": [], "stance_changed": False, "actionability_changed": False, "persistence": "process_memory"}
+        return {
+            "ok": True,
+            "token": symbol,
+            "baseline_established": True,
+            "material_change": False,
+            "current_snapshot_id": current["snapshot_id"],
+            "previous_snapshot_id": None,
+            "score_delta": 0.0,
+            "changed_drivers": [],
+            "stance_changed": False,
+            "actionability_changed": False,
+            "persistence": "process_memory",
+        }
     old_signals = {item["name"]: item for group in previous["evidence"].values() for item in group}
     new_signals = {item["name"]: item for group in current["evidence"].values() for item in group}
     changed_drivers = []
@@ -115,5 +142,22 @@ async def get_signal_delta(token: str) -> dict:
     score_delta = round(float(current["score"]) - float(previous["score"]), 2)
     stance_changed = current["stance"] != previous["stance"]
     actionability_changed = current["actionability"] != previous["actionability"]
-    material_change = abs(score_delta) >= 5 or any(abs(float(x["delta"])) >= 10 for x in changed_drivers) or stance_changed or actionability_changed
-    return {"ok": True, "token": symbol, "baseline_established": False, "material_change": material_change, "current_snapshot_id": current["snapshot_id"], "previous_snapshot_id": previous["snapshot_id"], "score_delta": score_delta, "changed_drivers": changed_drivers, "stance_changed": stance_changed, "actionability_changed": actionability_changed, "persistence": "process_memory"}
+    material_change = (
+        abs(score_delta) >= 5
+        or any(abs(float(x["delta"])) >= 10 for x in changed_drivers)
+        or stance_changed
+        or actionability_changed
+    )
+    return {
+        "ok": True,
+        "token": symbol,
+        "baseline_established": False,
+        "material_change": material_change,
+        "current_snapshot_id": current["snapshot_id"],
+        "previous_snapshot_id": previous["snapshot_id"],
+        "score_delta": score_delta,
+        "changed_drivers": changed_drivers,
+        "stance_changed": stance_changed,
+        "actionability_changed": actionability_changed,
+        "persistence": "process_memory",
+    }

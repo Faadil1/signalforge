@@ -16,10 +16,14 @@ async def _validation_rate_limited(request: Request) -> None:
 
 
 @router.get("/validation/{token}", dependencies=[Depends(_validation_rate_limited)])
-async def validation(token: str, period_days: int = Query(default=120, ge=45, le=365), horizon_days: int = Query(default=3, ge=1, le=7)):
+async def validation(
+    token: str, period_days: int = Query(default=120, ge=45, le=365), horizon_days: int = Query(default=3, ge=1, le=7)
+):
     symbol = normalize_token(token)
     if not is_valid_token(symbol):
-        raise HTTPException(status_code=422, detail=error_token_payload(symbol, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$"))
+        raise HTTPException(
+            status_code=422, detail=error_token_payload(symbol, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
+        )
     try:
         return await run_signal_validation(symbol, period_days=period_days, horizon_days=horizon_days)
     except (BinancePublicError, ValueError) as exc:

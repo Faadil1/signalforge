@@ -22,7 +22,12 @@ COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title="SignalForge", description="Evidence-bound crypto market decision intelligence from live Binance market data", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(
+        title="SignalForge",
+        description="Evidence-bound crypto market decision intelligence from live Binance market data",
+        version="0.2.0",
+        lifespan=lifespan,
+    )
     app.state.settings = settings
     origins = list(settings.cors_origins)
     allow_credentials = False
@@ -33,16 +38,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             origins = origins + ["http://localhost:3000"]
         allow_origins = origins
         allow_credentials = True
-    app.add_middleware(CORSMiddleware, allow_origins=allow_origins, allow_credentials=allow_credentials, allow_methods=["*"], allow_headers=["*"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allow_origins,
+        allow_credentials=allow_credentials,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-        return JSONResponse(status_code=500, content={"ok": False, "error": {"code": INTERNAL_ERROR, "message": "Internal server error"}})
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": {"code": INTERNAL_ERROR, "message": "Internal server error"}},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(status_code=422, content={"ok": False, "error": {"code": "VALIDATION_ERROR", "message": "Request validation failed", "detail": exc.errors()}})
+        return JSONResponse(
+            status_code=422,
+            content={
+                "ok": False,
+                "error": {"code": "VALIDATION_ERROR", "message": "Request validation failed", "detail": exc.errors()},
+            },
+        )
 
     @app.middleware("http")
     async def track_usage(request: Request, call_next):
@@ -66,7 +86,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health")
     async def health():
         commit_valid = bool(COMMIT_RE.match(settings.git_commit))
-        return {"status": "ok" if commit_valid else "degraded", "service": "signalforge", "commit": settings.git_commit, "project_slug": settings.project_slug, "mock_fallback_enabled": settings.allow_mock_fallback}
+        return {
+            "status": "ok" if commit_valid else "degraded",
+            "service": "signalforge",
+            "commit": settings.git_commit,
+            "project_slug": settings.project_slug,
+            "mock_fallback_enabled": settings.allow_mock_fallback,
+        }
 
     @app.get("/.well-known/xagent-verification.json")
     async def xagent_verification():
@@ -78,7 +104,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
-    await binance.configure(timeout_s=settings.binance_timeout_s, max_retries=settings.binance_max_retries, max_concurrency=settings.binance_max_concurrency, allow_mock_fallback=settings.allow_mock_fallback)
+    await binance.configure(
+        timeout_s=settings.binance_timeout_s,
+        max_retries=settings.binance_max_retries,
+        max_concurrency=settings.binance_max_concurrency,
+        allow_mock_fallback=settings.allow_mock_fallback,
+    )
     try:
         yield
     finally:

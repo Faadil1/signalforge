@@ -30,9 +30,18 @@ def _safe_ratio(numerator: float, denominator: float, default: float = 0.0) -> f
 
 
 STRATEGY_DESCRIPTIONS: dict[StrategyType, dict] = {
-    "momentum": {"name": "Momentum Rider", "description": "Rides strong price trends using moving average crossovers. Enters when short-term momentum outpaces the longer-term trend, exits on momentum fade."},
-    "mean_reversion": {"name": "Mean Reversion", "description": "Buys oversold conditions detected by RSI and sells into overbought strength as price reverts to the moving average."},
-    "sentiment_flow": {"name": "Sentiment Flow", "description": "Combines trend structure with RSI positioning to identify mean-reversion opportunities in trending markets."},
+    "momentum": {
+        "name": "Momentum Rider",
+        "description": "Rides strong price trends using moving average crossovers. Enters when short-term momentum outpaces the longer-term trend, exits on momentum fade.",
+    },
+    "mean_reversion": {
+        "name": "Mean Reversion",
+        "description": "Buys oversold conditions detected by RSI and sells into overbought strength as price reverts to the moving average.",
+    },
+    "sentiment_flow": {
+        "name": "Sentiment Flow",
+        "description": "Combines trend structure with RSI positioning to identify mean-reversion opportunities in trending markets.",
+    },
 }
 
 
@@ -66,16 +75,44 @@ async def run_backtest(strategy: StrategyType, token: str, period: str = "90d") 
         raw_klines = await binance.get_klines(token, interval="1d", limit=limit)
     except Exception as exc:
         logger.warning("Backtest klines fetch failed for %s: %s", token, exc)
-        return BacktestResult(strategy=strategy, token=token.upper(), period=period, available=False, error="Unable to fetch historical klines", config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps}, disclaimer="Experimental - not financial advice")
+        return BacktestResult(
+            strategy=strategy,
+            token=token.upper(),
+            period=period,
+            available=False,
+            error="Unable to fetch historical klines",
+            config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+            disclaimer="Experimental - not financial advice",
+        )
     candles = [c for c in (_parse_candle(x) for x in raw_klines) if c]
     if len(candles) < settings.backtest_min_candles:
-        return BacktestResult(strategy=strategy, token=token.upper(), period=period, available=False, error=f"Insufficient data: {len(candles)} candles, need {settings.backtest_min_candles}", actual_period=f"{len(candles)}d", config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps}, disclaimer="Experimental - not financial advice")
+        return BacktestResult(
+            strategy=strategy,
+            token=token.upper(),
+            period=period,
+            available=False,
+            error=f"Insufficient data: {len(candles)} candles, need {settings.backtest_min_candles}",
+            actual_period=f"{len(candles)}d",
+            config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+            disclaimer="Experimental - not financial advice",
+        )
     cost_rate = (settings.backtest_fee_bps + settings.backtest_slippage_bps) / 10000.0
     try:
-        return _run_backtest_loop(strategy=strategy, token=token, period=period, candles=candles, cost_rate=cost_rate, settings=settings)
+        return _run_backtest_loop(
+            strategy=strategy, token=token, period=period, candles=candles, cost_rate=cost_rate, settings=settings
+        )
     except Exception as exc:
         logger.warning("Backtest computation failed for %s/%s: %s", strategy, token, exc, exc_info=True)
-        return BacktestResult(strategy=strategy, token=token.upper(), period=period, available=False, error=f"Backtest computation failed: {exc}", actual_period=f"{len(candles)}d", config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps}, disclaimer="Experimental - not financial advice")
+        return BacktestResult(
+            strategy=strategy,
+            token=token.upper(),
+            period=period,
+            available=False,
+            error=f"Backtest computation failed: {exc}",
+            actual_period=f"{len(candles)}d",
+            config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+            disclaimer="Experimental - not financial advice",
+        )
 
 
 def _run_backtest_loop(strategy, token, period, candles, cost_rate, settings) -> BacktestResult:
@@ -116,7 +153,18 @@ def _run_backtest_loop(strategy, token, period, candles, cost_rate, settings) ->
             total_trades += 1
             if pnl > 0:
                 win_trades += 1
-            trades.append({"id": total_trades, "token": token.upper(), "entry_date": entry_date, "exit_date": exec_candle["date"], "entry_price": round(entry_price, 2), "exit_price": round(exec_price, 2), "pnl_pct": round(pnl, 2), "position_size": round(position, 4)})
+            trades.append(
+                {
+                    "id": total_trades,
+                    "token": token.upper(),
+                    "entry_date": entry_date,
+                    "exit_date": exec_candle["date"],
+                    "entry_price": round(entry_price, 2),
+                    "exit_price": round(exec_price, 2),
+                    "pnl_pct": round(pnl, 2),
+                    "position_size": round(position, 4),
+                }
+            )
             capital = proceeds
             position = 0.0
 
@@ -134,16 +182,40 @@ def _run_backtest_loop(strategy, token, period, candles, cost_rate, settings) ->
         total_trades += 1
         if pnl > 0:
             win_trades += 1
-        trades.append({"id": total_trades, "token": token.upper(), "entry_date": entry_date, "exit_date": candles[-1]["date"], "entry_price": round(entry_price, 2), "exit_price": round(exec_price, 2), "pnl_pct": round(pnl, 2), "position_size": round(position, 4)})
+        trades.append(
+            {
+                "id": total_trades,
+                "token": token.upper(),
+                "entry_date": entry_date,
+                "exit_date": candles[-1]["date"],
+                "entry_price": round(entry_price, 2),
+                "exit_price": round(exec_price, 2),
+                "pnl_pct": round(pnl, 2),
+                "position_size": round(position, 4),
+            }
+        )
         capital = proceeds
 
     total_return = _safe_ratio(capital - 10000.0, 10000.0) * 100.0
     win_rate = (win_trades / total_trades * 100.0) if total_trades else 0.0
     return BacktestResult(
-        strategy=strategy, token=token.upper(), period=period, available=True, actual_period=f"{len(candles)}d",
-        config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps}, disclaimer="Experimental - not financial advice",
-        metrics=StrategyMetrics(total_return=f"{total_return:+.1f}%", sharpe_ratio=round(_sharpe(equity_curve), 2), max_drawdown=f"{max_drawdown * 100:.1f}%", win_rate=f"{win_rate:.0f}%", total_trades=total_trades, avg_trade_duration=_avg_duration(trades)),
-        equity_curve=equity, trades=trades,
+        strategy=strategy,
+        token=token.upper(),
+        period=period,
+        available=True,
+        actual_period=f"{len(candles)}d",
+        config={"fee_bps": settings.backtest_fee_bps, "slippage_bps": settings.backtest_slippage_bps},
+        disclaimer="Experimental - not financial advice",
+        metrics=StrategyMetrics(
+            total_return=f"{total_return:+.1f}%",
+            sharpe_ratio=round(_sharpe(equity_curve), 2),
+            max_drawdown=f"{max_drawdown * 100:.1f}%",
+            win_rate=f"{win_rate:.0f}%",
+            total_trades=total_trades,
+            avg_trade_duration=_avg_duration(trades),
+        ),
+        equity_curve=equity,
+        trades=trades,
     )
 
 
@@ -168,7 +240,14 @@ def _rsi(closes: list[float], period: int, idx: int) -> float | None:
     return 100.0 - (100.0 / (1.0 + rs))
 
 
-def _strategy_signal(strategy: StrategyType, short_sma: float | None, long_sma: float | None, rsi: float | None, close: float, prev_close: float) -> str:
+def _strategy_signal(
+    strategy: StrategyType,
+    short_sma: float | None,
+    long_sma: float | None,
+    rsi: float | None,
+    close: float,
+    prev_close: float,
+) -> str:
     if short_sma is None or long_sma is None:
         return "hold"
     if strategy == "momentum":
@@ -195,7 +274,11 @@ def _strategy_signal(strategy: StrategyType, short_sma: float | None, long_sma: 
 def _sharpe(equity_curve: list[float]) -> float:
     if len(equity_curve) < 2:
         return 0.0
-    returns = [_safe_ratio(equity_curve[i] - equity_curve[i - 1], equity_curve[i - 1]) for i in range(1, len(equity_curve)) if _safe_float(equity_curve[i - 1]) != 0]
+    returns = [
+        _safe_ratio(equity_curve[i] - equity_curve[i - 1], equity_curve[i - 1])
+        for i in range(1, len(equity_curve))
+        if _safe_float(equity_curve[i - 1]) != 0
+    ]
     if not returns:
         return 0.0
     mean = sum(returns) / len(returns)

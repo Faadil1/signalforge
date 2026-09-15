@@ -139,9 +139,7 @@ async def get_all_signals(tokens: str = Query(default=",".join(DEFAULT_TOKENS)))
 
     async def _one(token: str) -> SignalCard:
         if not is_valid_token(token):
-            return _card_from_payload(
-                error_token_payload(token, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$")
-            )
+            return _card_from_payload(error_token_payload(token, INVALID_TOKEN, "Token must match ^[A-Z0-9]{2,10}$"))
         return _card_from_payload(await get_signal_payload(token))
 
     cards = await asyncio.gather(*(_one(t) for t in normalized))

@@ -30,22 +30,50 @@ async def run_signal_validation(token: str, period_days: int = 120, horizon_days
         forward_close = _safe_float(candles[idx + horizon_days].get("close"))
         if current_close <= 0 or previous_close <= 0 or forward_close <= 0:
             continue
-        ticker = {"last_price": current_close, "volume": _safe_float(current.get("volume")), "price_change_pct": ((current_close - previous_close) / previous_close) * 100.0}
-        composite = compute_composite(RawSignalBundle(symbol=token, klines=window, ticker=ticker, open_interest={}, funding=None, source_meta={"mode": "historical_proxy", "provider": "binance_public"}))
+        ticker = {
+            "last_price": current_close,
+            "volume": _safe_float(current.get("volume")),
+            "price_change_pct": ((current_close - previous_close) / previous_close) * 100.0,
+        }
+        composite = compute_composite(
+            RawSignalBundle(
+                symbol=token,
+                klines=window,
+                ticker=ticker,
+                open_interest={},
+                funding=None,
+                source_meta={"mode": "historical_proxy", "provider": "binance_public"},
+            )
+        )
         forward_return = ((forward_close - current_close) / current_close) * 100.0
-        samples.append({"date": current.get("date"), "score": composite.score, "forward_return_pct": round(forward_return, 4)})
+        samples.append(
+            {"date": current.get("date"), "score": composite.score, "forward_return_pct": round(forward_return, 4)}
+        )
     buckets = [("0-39", 0, 40), ("40-59", 40, 60), ("60-74", 60, 75), ("75-100", 75, 101)]
     bucket_results = []
     for label, lo, hi in buckets:
         members = [s for s in samples if lo <= s["score"] < hi]
         if not members:
-            bucket_results.append({"bucket": label, "samples": 0, "avg_forward_return_pct": None, "positive_rate": None})
+            bucket_results.append(
+                {"bucket": label, "samples": 0, "avg_forward_return_pct": None, "positive_rate": None}
+            )
             continue
         avg_return = sum(s["forward_return_pct"] for s in members) / len(members)
         positive_rate = sum(1 for s in members if s["forward_return_pct"] > 0) / len(members)
-        bucket_results.append({"bucket": label, "samples": len(members), "avg_forward_return_pct": round(avg_return, 3), "positive_rate": round(positive_rate, 3)})
+        bucket_results.append(
+            {
+                "bucket": label,
+                "samples": len(members),
+                "avg_forward_return_pct": round(avg_return, 3),
+                "positive_rate": round(positive_rate, 3),
+            }
+        )
     directional = [s for s in samples if s["score"] >= 60 or s["score"] < 40]
-    correct = sum(1 for s in directional if (s["score"] >= 60 and s["forward_return_pct"] > 0) or (s["score"] < 40 and s["forward_return_pct"] < 0))
+    correct = sum(
+        1
+        for s in directional
+        if (s["score"] >= 60 and s["forward_return_pct"] > 0) or (s["score"] < 40 and s["forward_return_pct"] < 0)
+    )
     accuracy = (correct / len(directional)) if directional else None
     return {
         "ok": True,
