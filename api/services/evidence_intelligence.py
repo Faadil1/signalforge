@@ -6,6 +6,7 @@ import json
 import math
 from collections import Counter, defaultdict
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from models.signal import SIGNAL_WEIGHTS
@@ -24,6 +25,9 @@ SIGNAL_RAW_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "funding": ("funding",),
     "open_interest": ("open_interest", "ticker"),
     "volume": ("klines", "ticker"),
+}
+SIGNAL_RAW_DEPENDENCIES_RAW_INPUTS = {
+    raw_input for dependencies in SIGNAL_RAW_DEPENDENCIES.values() for raw_input in dependencies
 }
 
 NON_LIVE_PROVIDERS = {"unavailable", "unknown", "mock", ""}
@@ -56,6 +60,18 @@ def _live_provider(value: Any) -> str | None:
         return None
     normalized = value.strip()
     return None if normalized in NON_LIVE_PROVIDERS else normalized
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _lineage_for_signal(name: str, sources: dict[str, Any]) -> dict[str, Any]:
@@ -125,7 +141,9 @@ def build_lineage_analysis(payload: dict[str, Any]) -> dict[str, Any]:
         "scope": "provider_and_raw_input_lineage_not_statistical_independence",
         "available_signals": available_names,
         "signal_lineage": lineages,
-        "raw_source_providers": {key: sources.get(key, "unknown") for key in sorted(SIGNAL_RAW_DEPENDENCIES_RAW_INPUTS)},
+        "raw_source_providers": {
+            key: sources.get(key, "unknown") for key in sorted(SIGNAL_RAW_DEPENDENCIES_RAW_INPUTS)
+        },
         "unique_live_providers": sorted(provider_signal_counts),
         "provider_signal_counts": dict(sorted(provider_signal_counts.items())),
         "dominant_provider": dominant_provider,
@@ -137,9 +155,145 @@ def build_lineage_analysis(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-SIGNAL_RAW_DEPENDENCIES_RAW_INPUTS = {
-    raw_input for dependencies in SIGNAL_RAW_DEPENDENCIES.values() for raw_input in dependencies
-}
+def _contributing_raw_inputs(payload: dict[str, Any]) -> list[str]:
+    signals = _signal_map(payload)
+    raw_inputs: set[str] = set()
+    for name, item in signals.items():
+        if item.get("available") is True:
+            raw_inputs.update(SIGNAL_RAW_DEPENDENCIES.get(name, ()))
+    return sorted(raw_inputs)
+
+
+def build_evidence_lease(payload: dict[str, Any]) -> dict[str, Any]:
+    """Bound the current evidence set by its earliest contributing source deadline.
+
+    This is an evidence-freshness lease, not a forecast-validity guarantee. It
+    only states how long the already-admitted raw evidence remains within its
+    configured freshness budget if no newer observation arrives.
+    """
+    source_meta = payload.get("source_meta", {}) if isinstance(payload.get("source_meta"), dict) else {}
+    freshness = source_meta.get("freshness", {}) if isinstance(source_meta.get("freshness"), dict) else {}
+    contributing = _contributing_raw_inputs(payload)
+
+    if not contributing:
+        return {
+            "status": "unknown",
+            "valid_until": None,
+            "remaining_seconds": None,
+            "limiting_raw_source": None,
+            "contributing_raw_sources": [],
+            "source_deadlines": [],
+            "freshness_only": True,
+            "forecast_validity_guaranteed": False,
+            "execution_authorized": False,
+            "reason": "No admitted evidence sources are available to establish a freshness lease.",
+        }
+
+    deadlines: list[dict[str, Any]] = []
+    evaluation_times: list[datetime] = []
+    uncertain_sources: list[str] = []
+    expired_sources: list[str] = []
+
+    for raw_input in contributing:
+        record = freshness.get(raw_input)
+        if not isinstance(record, dict):
+            uncertain_sources.append(raw_input)
+            continue
+
+        status = str(record.get("status", "unknown"))
+        source_timestamp = _parse_iso(record.get("source_timestamp"))
+        received_at = _parse_iso(record.get("received_at"))
+        try:
+            max_age_seconds = float(record.get("max_age_seconds"))
+        except (TypeError, ValueError):
+            max_age_seconds = -1.0
+
+        if received_at:
+            evaluation_times.append(received_at)
+        if status != "fresh":
+            if status == "stale":
+                expired_sources.append(raw_input)
+            else:
+                uncertain_sources.append(raw_input)
+            continue
+        if source_timestamp is None or max_age_seconds < 0:
+            uncertain_sources.append(raw_input)
+            continue
+
+        deadline = source_timestamp + timedelta(seconds=max_age_seconds)
+        deadlines.append(
+            {
+                "raw_source": raw_input,
+                "source_timestamp": source_timestamp.isoformat(),
+                "max_age_seconds": max_age_seconds,
+                "valid_until": deadline.isoformat(),
+            }
+        )
+
+    if expired_sources:
+        return {
+            "status": "expired",
+            "valid_until": None,
+            "remaining_seconds": 0.0,
+            "limiting_raw_source": sorted(expired_sources)[0],
+            "contributing_raw_sources": contributing,
+            "source_deadlines": deadlines,
+            "freshness_only": True,
+            "forecast_validity_guaranteed": False,
+            "execution_authorized": False,
+            "reason": "At least one admitted raw source is already outside its freshness budget.",
+        }
+
+    if uncertain_sources or len(deadlines) != len(contributing):
+        return {
+            "status": "unknown",
+            "valid_until": None,
+            "remaining_seconds": None,
+            "limiting_raw_source": None,
+            "contributing_raw_sources": contributing,
+            "source_deadlines": deadlines,
+            "uncertain_raw_sources": sorted(set(uncertain_sources)),
+            "freshness_only": True,
+            "forecast_validity_guaranteed": False,
+            "execution_authorized": False,
+            "reason": "A complete freshness deadline cannot be proven for every admitted raw source.",
+        }
+
+    limiting = min(deadlines, key=lambda item: item["valid_until"])
+    valid_until = _parse_iso(limiting["valid_until"])
+    evaluation_at = max(evaluation_times) if evaluation_times else None
+    if valid_until is None or evaluation_at is None:
+        return {
+            "status": "unknown",
+            "valid_until": None,
+            "remaining_seconds": None,
+            "limiting_raw_source": None,
+            "contributing_raw_sources": contributing,
+            "source_deadlines": deadlines,
+            "freshness_only": True,
+            "forecast_validity_guaranteed": False,
+            "execution_authorized": False,
+            "reason": "Freshness timestamps are incomplete.",
+        }
+
+    remaining = round((valid_until - evaluation_at).total_seconds(), 3)
+    status = "valid" if remaining >= 0 else "expired"
+    return {
+        "status": status,
+        "evaluated_at": evaluation_at.isoformat(),
+        "valid_until": valid_until.isoformat(),
+        "remaining_seconds": max(0.0, remaining),
+        "limiting_raw_source": limiting["raw_source"],
+        "contributing_raw_sources": contributing,
+        "source_deadlines": sorted(deadlines, key=lambda item: item["raw_source"]),
+        "freshness_only": True,
+        "forecast_validity_guaranteed": False,
+        "execution_authorized": False,
+        "reason": (
+            "Lease is bounded by the earliest freshness deadline among raw inputs that currently contribute "
+            "to admitted signals."
+        ),
+    }
 
 
 def build_recovery_requirements(payload: dict[str, Any]) -> dict[str, Any]:
@@ -228,9 +382,7 @@ def build_recovery_requirements(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _state_after_removal(payload: dict[str, Any], removed: set[str]) -> dict[str, Any]:
     signals = _signal_map(payload)
-    remaining = [
-        item for name, item in signals.items() if item.get("available") is True and name not in removed
-    ]
+    remaining = [item for name, item in signals.items() if item.get("available") is True and name not in removed]
     available_count = len(remaining)
     coverage = available_count / len(SIGNAL_WEIGHTS) if SIGNAL_WEIGHTS else 0.0
 
@@ -344,10 +496,12 @@ def build_decision_stress_test(payload: dict[str, Any]) -> dict[str, Any]:
         "single_channel_dropouts": single_dropouts,
         "provider_dropouts": provider_dropouts,
         "lineage": lineage,
+        "evidence_lease": build_evidence_lease(payload),
         "recovery_requirements": build_recovery_requirements(payload),
         "limitations": [
             "Dropout tests remove already-observed evidence; they do not invent replacement values.",
             "Provider concentration is a lineage diagnostic, not a claim that channels are statistically independent or correlated.",
+            "The evidence lease bounds source freshness only; it does not guarantee market or forecast validity.",
             "This stress test does not measure trading profitability or historical incident prevention.",
         ],
         "execution_authorized": False,
@@ -371,6 +525,7 @@ def _receipt_payload(packet: dict[str, Any]) -> dict[str, Any]:
         "evidence",
         "data_quality",
         "evidence_lineage",
+        "evidence_lease",
         "recovery_requirements",
         "invalidation",
         "agent_next_action",
@@ -394,10 +549,18 @@ def build_decision_receipt(packet: dict[str, Any]) -> dict[str, Any]:
 
 def verify_decision_receipt(packet: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(packet, dict):
-        return {"ok": False, "valid": False, "error": {"code": "INVALID_PACKET", "message": "Packet must be an object."}}
+        return {
+            "ok": False,
+            "valid": False,
+            "error": {"code": "INVALID_PACKET", "message": "Packet must be an object."},
+        }
     receipt = packet.get("receipt")
     if not isinstance(receipt, dict):
-        return {"ok": False, "valid": False, "error": {"code": "MISSING_RECEIPT", "message": "Decision receipt is required."}}
+        return {
+            "ok": False,
+            "valid": False,
+            "error": {"code": "MISSING_RECEIPT", "message": "Decision receipt is required."},
+        }
     if receipt.get("version") != RECEIPT_VERSION or receipt.get("algorithm") != RECEIPT_ALGORITHM:
         return {
             "ok": False,
