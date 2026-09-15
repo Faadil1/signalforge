@@ -1,4 +1,4 @@
-[project]
+﻿[project]
 name = "signalforge-cloudflare-worker"
 version = "0.3.0"
 requires-python = ">=3.13"
@@ -6,6 +6,7 @@ dependencies = [
   "fastapi==0.115.0",
   "pydantic==2.12.5",
   "httpx2==2.12.0",
+  "httpcore2==2.12.0",
 ]
 
 [dependency-groups]
@@ -18,3 +19,4 @@ dev = [
 testpaths = ["tests"]
 pythonpath = ["api"]
 addopts = "-q"
+
