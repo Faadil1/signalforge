@@ -178,10 +178,21 @@ def test_provider_dropout_stress_exposes_hidden_dependency_chain() -> None:
     assert coinbase["result"]["execution_authorized"] is False
     assert result["evidence_lease"]["status"] == "valid"
 
+    sufficiency = result["minimum_sufficient_evidence"]
+    assert sufficiency["baseline_policy_passes"] is True
+    assert sufficiency["minimum_signal_count"] == 4
+    assert sufficiency["minimum_sufficient_signal_sets"]
+    assert sufficiency["causal_sufficiency_claimed"] is False
+    assert sufficiency["future_sufficiency_guaranteed"] is False
+    assert sufficiency["execution_authorized"] is False
 
-def test_already_refusing_state_is_not_mislabelled_as_resilient() -> None:
+
+def test_already_refusing_state_has_no_sufficient_subset() -> None:
     result = build_decision_stress_test(_partial_payload())
 
     assert result["fragility_class"] == "already_refusing"
     assert result["minimum_dropouts_to_refusal"] is None
+    assert result["minimum_sufficient_evidence"]["baseline_policy_passes"] is False
+    assert result["minimum_sufficient_evidence"]["minimum_signal_count"] is None
+    assert result["minimum_sufficient_evidence"]["minimum_sufficient_signal_sets"] == []
     assert result["execution_authorized"] is False
