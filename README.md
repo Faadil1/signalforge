@@ -20,7 +20,7 @@
 <p align="center"><sub>X-Agent MCP Hackathon 2026 · Live Cloudflare Worker · Read-only research authority</sub></p>
 
 > **Current status**  
-> The current SignalForge build is live on Cloudflare. The public runtime is bound to source commit `ada65fe9b2170a910d458f2db9855fe087ca9446` and Cloudflare Version ID `a7d93227-a130-4403-aa37-f992c3bd61ea`. Production runs with mock fallback disabled. Every Decision Packet preserves `execution_authorized: false`.
+> SignalForge runs as a public Cloudflare Worker with mock fallback disabled and execution authority kept external. The runtime exposes its exact deployed source commit through `/health` and `/.well-known/xagent-verification.json`; those two values must match for a release to be considered bound.
 
 ---
 
@@ -84,18 +84,17 @@ curl "https://signalforge.faadil-casecraft.workers.dev/api/v1/validation/BTC?per
 curl https://signalforge.faadil-casecraft.workers.dev/api/v1/evidence/negative-path
 ```
 
-The verified production snapshot established all of the following:
+A bound release must establish all of the following:
 
-- `/health` returned `status: ok` and the exact deployed source commit.
-- X-Agent verification returned the same commit and `slug: signalforge`.
-- Production data mode was live-partial, not mock.
-- Unavailable funding and open-interest evidence were excluded rather than invented.
-- BTC actionability resolved to `insufficient_evidence` when confidence was below policy threshold.
-- `execution_authorized` remained `false`.
-- The negative-path fixture passed and preserved abstention under degraded evidence.
-- Historical calibration disclosed that only the price-derived 3/5 subset is validated by that endpoint.
+- `/health` returns `status: ok` and the exact deployed source commit;
+- X-Agent verification returns the same commit and `slug: signalforge`;
+- production data mode is not mock;
+- unavailable evidence is excluded rather than invented;
+- `execution_authorized` remains `false`;
+- the negative-path fixture passes and preserves abstention under degraded evidence;
+- historical calibration states its actual scope and does not claim full-composite validation when only the price-derived subset is measured.
 
-See [`docs/RUNTIME-PROOF.md`](docs/RUNTIME-PROOF.md) for the compact public receipt.
+See [`docs/RUNTIME-PROOF.md`](docs/RUNTIME-PROOF.md) for the public proof contract and independently verified baseline.
 
 ---
 
@@ -257,8 +256,7 @@ The public repository is intentionally submission-focused:
 - `docs/ARCHITECTURE.md` — compact system map
 - `docs/AGENT-INTEGRATION.md` — REST/MCP integration contract
 - `docs/JUDGE-DEMO.md` — reviewer runbook
-- `docs/RUNTIME-PROOF.md` — public runtime binding and proof summary
-- `docs/RUNTIME-DEPLOYMENT.md` — deployment notes
+- `docs/RUNTIME-PROOF.md` — public runtime verification contract
 
 Internal research, design exploration, naming studies, strategy notes, operational handovers, and private working-state files are intentionally excluded from the submission tree.
 
