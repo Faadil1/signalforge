@@ -1,7 +1,7 @@
 project: signalforge
 workstream: trace_ui_v2_maximal
 status: TRACE_V2_LIVE
-canonical_state: TRACE_V2_LIVE_RUNTIME_BOUND_NAMING_GATE_OPEN
+canonical_state: TRACE_V2_LIVE_NAMING_GATE_NO_RENAME_YET
 branch: trace-ui-v2-maximal
 
 production_canon:
@@ -119,15 +119,33 @@ boundaries:
   - do_not_merge_without_explicit_user_authorization
   - do_not_rename_slug_api_or_worker_until_naming_migration_is_explicitly_authorized
 
+naming_gate:
+  status: NO_RENAME_YET
+  record: docs/NAMING-GATE-2026-09-16.md
+  canonical_runtime_name: SignalForge
+  screened_and_rejected:
+    - CLEARANCE
+    - THRESHOLD
+    - PROOFLATCH
+    - RIGHT_TO_ACT
+    - GROUNDCLEAR
+    - ADMITLINE
+  adjacent_territory_to_avoid:
+    - CLAIMBOUND
+    - WARRANT
+    - WARRANTGATE
+  rule: preserve_signalforge_identifiers_until_a_new_candidate_passes_full_gate_and_migration_is_explicitly_authorized
+
 next_gate:
-  name: NAMING_GATE
+  name: NAMING_GENERATION_2
   status: OPEN
   tasks:
-    - collision_search_github_web_domains
-    - semantic_fit_against_right_to_conclude_mechanism
-    - pronounceability_and_memory_test
-    - identity_and_wordmark_direction
-    - migration_cost_and_slug_compatibility_review
-    - preserve_signalforge_runtime_identifiers_until_rename_authorized
+    - generate_fresh_non_obvious_brand_family
+    - screen_adjacent_AI_evidence_agent_governance_collisions
+    - screen_search_distinctiveness
+    - test_pronounceability_and_judge_memory
+    - test_identity_and_wordmark_fit
+    - preliminary_domain_and_trademark_screen
+    - migration_cost_review_before_any_rename
 
 submission_ready: false
