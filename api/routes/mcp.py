@@ -20,69 +20,146 @@ MCP_PROTOCOL_VERSION = "2026-07-28"
 SERVER_INFO = {"name": "signalforge", "version": "0.6.0"}
 SERVER_META = {"io.modelcontextprotocol/serverInfo": SERVER_INFO}
 
-READ_ONLY_ANNOTATIONS = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True}
+READ_ONLY_ANNOTATIONS = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": True,
+}
 
 TOOLS: list[dict[str, Any]] = [
     {
         "name": "get_decision_packet",
         "title": "Get Evidence-Bound Decision Packet",
-        "description": "Evaluate live market evidence for one token. Returns provenance, coverage, confidence, lineage concentration, recovery requirements, a tamper-evident receipt, and no execution authority.",
-        "inputSchema": {"type": "object", "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}}, "required": ["token"], "additionalProperties": False},
+        "description": (
+            "Evaluate live market evidence for one token. Returns provenance, coverage, confidence, "
+            "lineage concentration, recovery requirements, a tamper-evident receipt, and no execution authority."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}},
+            "required": ["token"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "compare_decision_packet",
         "title": "Compare Decision Packet",
-        "description": "Compare a caller-supplied prior SignalForge Decision Packet with a fresh live packet. Stateless across serverless isolates.",
-        "inputSchema": {"type": "object", "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}, "baseline": {"type": "object"}}, "required": ["token", "baseline"], "additionalProperties": False},
+        "description": (
+            "Compare a caller-supplied prior SignalForge Decision Packet with a fresh live packet. "
+            "Stateless across serverless isolates."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"},
+                "baseline": {"type": "object"},
+            },
+            "required": ["token", "baseline"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "stress_test_decision",
         "title": "Stress Test Decision Fragility",
-        "description": "Measure how the current Decision Packet changes when already-observed evidence channels or providers are removed. No replacement values are invented and no historical replay is claimed.",
-        "inputSchema": {"type": "object", "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}}, "required": ["token"], "additionalProperties": False},
+        "description": (
+            "Measure how the current Decision Packet changes when already-observed evidence channels or providers "
+            "are removed. No replacement values are invented and no historical replay is claimed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}},
+            "required": ["token"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "plan_evidence_recovery",
         "title": "Plan Evidence Recovery",
-        "description": "For the current Decision Packet, quantify evidence debt and return safe reacquisition candidates, a reevaluation gate, and a content-addressed refusal receipt. Recovery never guarantees actionability.",
-        "inputSchema": {"type": "object", "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}}, "required": ["token"], "additionalProperties": False},
+        "description": (
+            "For the current Decision Packet, quantify evidence debt and return safe reacquisition candidates, "
+            "a reevaluation gate, and a content-addressed refusal receipt. Recovery never guarantees actionability."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}},
+            "required": ["token"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "verify_evidence_recovery",
         "title": "Verify Evidence Recovery",
-        "description": "Compare a prior refusal-recovery plan with a fresh live Decision Packet and report whether evidence debt improved, stayed unchanged, degraded, or passed the policy gate. It never equates repair with correctness or execution authority.",
-        "inputSchema": {"type": "object", "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}, "previous_plan": {"type": "object"}}, "required": ["token", "previous_plan"], "additionalProperties": False},
+        "description": (
+            "Compare a prior refusal-recovery plan with a fresh live Decision Packet and report whether evidence "
+            "debt improved, stayed unchanged, degraded, or passed the policy gate. It never equates repair with "
+            "correctness or execution authority."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"},
+                "previous_plan": {"type": "object"},
+            },
+            "required": ["token", "previous_plan"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "verify_decision_receipt",
         "title": "Verify Decision Receipt",
-        "description": "Verify the SHA-256 receipt embedded in a SignalForge Decision Packet without fetching market data.",
-        "inputSchema": {"type": "object", "properties": {"packet": {"type": "object"}}, "required": ["packet"], "additionalProperties": False},
+        "description": (
+            "Verify the SHA-256 receipt embedded in a SignalForge Decision Packet without fetching market data."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"packet": {"type": "object"}},
+            "required": ["packet"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "validate_price_signals",
         "title": "Validate Price-Derived Signals",
-        "description": "Run bounded historical calibration for the price-derived 3-of-5 subset. This is not full-composite validation or proof of profitability.",
-        "inputSchema": {"type": "object", "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}, "period_days": {"type": "integer", "minimum": 45, "maximum": 365, "default": 120}, "horizon_days": {"type": "integer", "minimum": 1, "maximum": 7, "default": 3}}, "required": ["token"], "additionalProperties": False},
+        "description": (
+            "Run bounded historical calibration for the price-derived 3-of-5 subset. "
+            "This is not full-composite validation or proof of profitability."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"},
+                "period_days": {"type": "integer", "minimum": 45, "maximum": 365, "default": 120},
+                "horizon_days": {"type": "integer", "minimum": 1, "maximum": 7, "default": 3},
+            },
+            "required": ["token"],
+            "additionalProperties": False,
+        },
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "inspect_negative_path",
         "title": "Inspect Negative Path",
-        "description": "Return the sourced real failure record plus a controlled refusal proof. The controlled fixture is explicitly not a historical replay.",
+        "description": (
+            "Return the sourced real failure record plus a controlled refusal proof. "
+            "The controlled fixture is explicitly not a historical replay."
+        ),
         "inputSchema": {"type": "object", "additionalProperties": False},
         "annotations": READ_ONLY_ANNOTATIONS,
     },
     {
         "name": "run_evidence_resilience_benchmark",
         "title": "Run Evidence Resilience Benchmark",
-        "description": "Run deterministic policy-conformance cases across healthy, stale, unavailable, inconsistent, and mock-removed evidence states. Not a market-accuracy benchmark.",
+        "description": (
+            "Run deterministic policy-conformance cases across healthy, stale, unavailable, "
+            "inconsistent, and mock-removed evidence states. Not a market-accuracy benchmark."
+        ),
         "inputSchema": {"type": "object", "additionalProperties": False},
         "annotations": READ_ONLY_ANNOTATIONS,
     },
@@ -90,7 +167,10 @@ TOOLS: list[dict[str, Any]] = [
 
 
 def _rpc_error(request_id: Any, code: int, message: str, *, status_code: int = 400) -> JSONResponse:
-    return JSONResponse(status_code=status_code, content={"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}})
+    return JSONResponse(
+        status_code=status_code,
+        content={"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}},
+    )
 
 
 def _rpc_result(request_id: Any, result: dict[str, Any]) -> JSONResponse:
@@ -99,7 +179,16 @@ def _rpc_result(request_id: Any, result: dict[str, Any]) -> JSONResponse:
 
 def _tool_result(request_id: Any, payload: Any, *, is_error: bool = False) -> JSONResponse:
     serialized = json.dumps(payload, separators=(",", ":"), default=str)
-    return _rpc_result(request_id, {"resultType": "complete", "_meta": SERVER_META, "content": [{"type": "text", "text": serialized}], "structuredContent": payload, "isError": is_error})
+    return _rpc_result(
+        request_id,
+        {
+            "resultType": "complete",
+            "_meta": SERVER_META,
+            "content": [{"type": "text", "text": serialized}],
+            "structuredContent": payload,
+            "isError": is_error,
+        },
+    )
 
 
 def _normalize_valid_token(value: Any) -> str | None:
@@ -124,13 +213,18 @@ def _validate_modern_request(request: Request, body: Any) -> JSONResponse | None
         return _rpc_error(request_id, -32600, "Origin is not allowed", status_code=403)
     if not isinstance(body, dict) or body.get("jsonrpc") != "2.0" or body.get("id") is None:
         return _rpc_error(request_id, -32600, "Invalid JSON-RPC request")
+
     method = body.get("method")
     if not isinstance(method, str):
         return _rpc_error(request_id, -32600, "Missing JSON-RPC method")
-    if request.headers.get("mcp-protocol-version") != MCP_PROTOCOL_VERSION:
+
+    protocol_header = request.headers.get("mcp-protocol-version")
+    method_header = request.headers.get("mcp-method")
+    if protocol_header != MCP_PROTOCOL_VERSION:
         return _rpc_error(request_id, -32022, "Unsupported MCP protocol version")
-    if request.headers.get("mcp-method") != method:
+    if method_header != method:
         return _rpc_error(request_id, -32020, "Mcp-Method header does not match request method")
+
     params = body.get("params")
     if not isinstance(params, dict):
         return _rpc_error(request_id, -32602, "params must be an object")
@@ -141,6 +235,7 @@ def _validate_modern_request(request: Request, body: Any) -> JSONResponse | None
         return _rpc_error(request_id, -32022, "Request metadata protocol version is unsupported")
     if not isinstance(meta.get("io.modelcontextprotocol/clientCapabilities"), dict):
         return _rpc_error(request_id, -32602, "Client capabilities are required in params._meta")
+
     if method == "tools/call":
         name = params.get("name")
         if not isinstance(name, str):
@@ -149,6 +244,7 @@ def _validate_modern_request(request: Request, body: Any) -> JSONResponse | None
             return _rpc_error(request_id, -32020, "Mcp-Name header does not match tool name")
     elif request.headers.get("mcp-name"):
         return _rpc_error(request_id, -32020, "Mcp-Name must be omitted for this method")
+
     return None
 
 
@@ -159,6 +255,7 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
             return {"code": "INVALID_TOKEN", "message": "token must match ^[A-Z0-9]{2,10}$"}, True
         result = await get_decision_packet(token)
         return result, not bool(result.get("ok"))
+
     if name == "compare_decision_packet":
         token = _normalize_valid_token(arguments.get("token"))
         baseline = arguments.get("baseline")
@@ -166,31 +263,39 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
             return {"code": "INVALID_ARGUMENTS", "message": "token and baseline Decision Packet are required"}, True
         result = await compare_with_live_decision(token, baseline)
         return result, not bool(result.get("ok"))
+
     if name == "stress_test_decision":
         token = _normalize_valid_token(arguments.get("token"))
         if token is None:
             return {"code": "INVALID_TOKEN", "message": "token must match ^[A-Z0-9]{2,10}$"}, True
         result = await get_decision_stress_test(token)
         return result, not bool(result.get("ok"))
+
     if name == "plan_evidence_recovery":
         token = _normalize_valid_token(arguments.get("token"))
         if token is None:
             return {"code": "INVALID_TOKEN", "message": "token must match ^[A-Z0-9]{2,10}$"}, True
         result = await get_recovery_plan(token)
         return result, not bool(result.get("ok"))
+
     if name == "verify_evidence_recovery":
         token = _normalize_valid_token(arguments.get("token"))
         previous_plan = arguments.get("previous_plan")
         if token is None or not isinstance(previous_plan, dict):
-            return {"code": "INVALID_ARGUMENTS", "message": "token and previous refusal recovery plan are required"}, True
+            return {
+                "code": "INVALID_ARGUMENTS",
+                "message": "token and previous refusal recovery plan are required",
+            }, True
         result = await verify_live_recovery(token, previous_plan)
         return result, not bool(result.get("ok"))
+
     if name == "verify_decision_receipt":
         packet = arguments.get("packet")
         if not isinstance(packet, dict):
             return {"code": "INVALID_ARGUMENTS", "message": "packet with embedded receipt is required"}, True
         result = verify_decision_receipt(packet)
         return result, not bool(result.get("ok"))
+
     if name == "validate_price_signals":
         token = _normalize_valid_token(arguments.get("token"))
         period_days = arguments.get("period_days", 120)
@@ -203,11 +308,14 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
             return await run_signal_validation(token, period_days=period_days, horizon_days=horizon_days), False
         except Exception as exc:
             return {"code": "VALIDATION_FAILED", "message": str(exc)}, True
+
     if name == "inspect_negative_path":
         return build_negative_path_evidence(), False
+
     if name == "run_evidence_resilience_benchmark":
         result = build_resilience_benchmark()
         return result, not bool(result.get("ok"))
+
     return {"code": "UNKNOWN_TOOL", "message": f"Unknown tool: {name}"}, True
 
 
@@ -218,16 +326,47 @@ async def mcp_post(request: Request):
         body = await request.json()
     except Exception:
         return _rpc_error(None, -32700, "Parse error")
+
     invalid = _validate_modern_request(request, body)
     if invalid is not None:
         return invalid
+
     request_id = body["id"]
     method = body["method"]
     params = body["params"]
+
     if method == "server/discover":
-        return _rpc_result(request_id, {"resultType": "complete", "supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {"listChanged": False}}, "instructions": "SignalForge is a read-only pre-action evidence gate. Use get_decision_packet first; stress_test_decision reveals fragility. When the gate refuses, plan_evidence_recovery quantifies evidence debt. After reacquisition, verify_evidence_recovery proves whether the observed evidence-policy state improved. No tool equates repair with correctness or authorizes execution.", "ttlMs": 300000, "cacheScope": "public", "_meta": SERVER_META})
+        return _rpc_result(
+            request_id,
+            {
+                "resultType": "complete",
+                "supportedVersions": [MCP_PROTOCOL_VERSION],
+                "capabilities": {"tools": {"listChanged": False}},
+                "instructions": (
+                    "SignalForge is a read-only pre-action evidence gate. Use get_decision_packet first; "
+                    "stress_test_decision reveals fragility. When the gate refuses, plan_evidence_recovery "
+                    "quantifies evidence debt. After reacquisition, verify_evidence_recovery proves whether the "
+                    "observed evidence-policy state improved. No tool equates repair with correctness or "
+                    "authorizes execution."
+                ),
+                "ttlMs": 300000,
+                "cacheScope": "public",
+                "_meta": SERVER_META,
+            },
+        )
+
     if method == "tools/list":
-        return _rpc_result(request_id, {"resultType": "complete", "tools": TOOLS, "ttlMs": 300000, "cacheScope": "public", "_meta": SERVER_META})
+        return _rpc_result(
+            request_id,
+            {
+                "resultType": "complete",
+                "tools": TOOLS,
+                "ttlMs": 300000,
+                "cacheScope": "public",
+                "_meta": SERVER_META,
+            },
+        )
+
     if method == "tools/call":
         name = params["name"]
         arguments = params.get("arguments", {})
@@ -238,6 +377,7 @@ async def mcp_post(request: Request):
             return _rpc_error(request_id, -32602, f"Unknown tool: {name}")
         payload, is_error = await _call_tool(name, arguments)
         return _tool_result(request_id, payload, is_error=is_error)
+
     return _rpc_error(request_id, -32601, f"Method not found: {method}")
 
 
