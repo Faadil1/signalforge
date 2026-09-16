@@ -106,6 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "resilience_benchmark": "/api/v1/evidence/resilience-benchmark",
             "decision_stress": "/api/v1/decision/{token}/stress",
             "recovery_plan": "/api/v1/decision/{token}/recovery-plan",
+            "recovery_verification": "/api/v1/decision/{token}/verify-recovery",
             "receipt_verification": "/api/v1/decision/verify-receipt",
         }
 
