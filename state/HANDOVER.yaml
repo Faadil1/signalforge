@@ -1,12 +1,13 @@
 project: signalforge
-handover_type: winning_intelligence_v3_verified_not_deployed
+handover_type: winning_intelligence_v3_live_branch_runtime
 branch: winning-intelligence-v3
-current_state: WINNING_INTELLIGENCE_V3_VERIFIED_NOT_DEPLOYED
-canonical_state: EVIDENCE_LIFECYCLE_DIFFERENTIATION_VERIFIED_BEFORE_TRACE_V2
+current_state: WINNING_INTELLIGENCE_V3_LIVE_BRANCH_SHA
+canonical_state: EVIDENCE_LIFECYCLE_LIVE_BEFORE_UPSTREAM_MERGE
 
 objective: >-
-  Preserve the verified Winning Intelligence v3 evidence-lifecycle product before the next TRACE UI/UX pass.
-  Do not claim branch-only behavior is live until an exact merged upstream SHA is deployed and publicly verified.
+  Preserve the now-live Winning Intelligence v3 runtime while keeping the upstream boundary explicit:
+  production is bound to the fork branch head, PR #3 is still open, and upstream main must be redeployed
+  exactly after merge before it becomes canonical.
 
 canonical_story:
   one_sentence: "SignalForge is a pre-action evidence gate that proves when a market agent should refuse to act."
@@ -19,109 +20,126 @@ upstream_state:
   repository: opeblow/signalforge
   pr_1: merged
   pr_2_winning_intelligence_v2: merged
-  current_main_sha: d61361af581d9c165fe8aecc35d27e67e7b332ad
-  pr_2_merged_at_utc: "2026-09-15T18:47:48Z"
-  winning_intelligence_v3_upstream: not_merged
+  pr_3_winning_intelligence_v3: open
+  upstream_main_sha: d61361af581d9c165fe8aecc35d27e67e7b332ad
+  pr_3_head_sha: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+  auto_merge_authorized: false
 
 current_production:
   origin: https://signalforge.faadil-casecraft.workers.dev
-  deployed_source_sha: 973ce1530e7a2205366b1115dc9bb4804bae2353
-  cloudflare_version_id: 9ab2f9cf-670b-4c17-b1ed-b8405132ee96
-  placement: remote-FRA
-  trace_seismic_market_atlas_live: true
+  deployed_source_sha: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+  cloudflare_version_id: ae32866c-2fb6-4545-b485-6a5a060ddfd3
+  exact_commit_verified: true
+  xagent_exact_commit_verified: true
   allow_mock_fallback: false
   execution_authorized: false
-  winning_intelligence_v3_live: false
+  winning_intelligence_v3_live: true
+  deployment_source: fork_branch_head
+  upstream_main_canonical: false
+
+public_runtime_truth:
+  health:
+    status: ok
+    commit: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+    contract_version: "1.1"
+    policy_version: evidence-gate-2026-09
+    mcp_protocol_version: "2026-07-28"
+  capabilities:
+    verified: true
+    mcp_transport_included: true
+    state_model: stateless
+    side_effects: none
+    execution_authority: none
+  decision:
+    verified: true
+    mode: live_partial
+    provider: multi_provider_public
+    ticker: coinbase_exchange
+    klines: coinbase_exchange
+    funding: unavailable
+    open_interest: unavailable
+    coverage: 0.6
+    confidence: 0.36
+    actionability: insufficient_evidence
+    execution_authorized: false
+    admission_ledger: present
+    lineage: present
+    evidence_lease: present
+    recovery_requirements: present
+    receipt: present
+  stress:
+    verified: true
+    fragility_class: already_refusing
+    dominant_provider: coinbase_exchange
+    concentration_level: high
+    execution_authorized: false
+  refusal_recovery:
+    verified: true
+    contract: refusal_recovery_v1
+    status: refused
+    confidence_gap: 0.04
+    unavailable_signals:
+      - funding
+      - open_interest
+    refusal_receipt_present: true
+    recovery_guarantees_actionability: false
+    execution_authorized: false
+  resilience_benchmark:
+    verified: true
+    passed: 4
+    total: 4
+    policy_conformance_rate: 1.0
+    scope: controlled_policy_conformance_not_market_accuracy
+    historical_replay: false
+  mcp:
+    server_discover_verified: true
+    tools_list_verified: false
+    tool_call_verified: false
+  pending_public_proof:
+    - recovery_verification_POST
+    - decision_receipt_verification_POST
+    - MCP_tools_list
+    - MCP_tools_call
 
 verified_v3_checkpoint:
   application_head: b881b71298d3c1547fa61ef09f8ee36a9f33e46a
-  deployed: false
+  live_branch_head: 5ce08ba7db50b534141219add96fa7a5c92a0f48
   standard_ci:
-    number: 95
-    id: 35044415952
+    number: 97
     result: success
   cloudflare_verify:
-    number: 140
-    id: 35044415938
+    number: 142
     result: success
-  gates:
-    - Ruff_lint
-    - Ruff_format
-    - full_backend_tests
-    - frontend_lint
-    - frontend_typecheck
-    - frontend_build
-    - Winning_Intelligence_contract_tests
-    - FastAPI_Cloudflare_import
-    - Binance_blocked_Coinbase_fallback_regression
-    - pywrangler_dry_run
-    - httpx2_httpcore2_packaging
+  local_cloudflare_deploy:
+    dry_run: success
+    production_deploy: success
+    version_id: ae32866c-2fb6-4545-b485-6a5a060ddfd3
 
 v3_evidence_lifecycle:
+  flow: >-
+    RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> FRESHNESS LEASE -> DERIVED EVIDENCE ->
+    COVERAGE/CONFIDENCE GATE -> FRAGILITY/SUFFICIENCY -> REFUSE/HANDOFF -> EVIDENCE DEBT ->
+    RECOVERY PLAN -> REACQUIRE -> RECOVERY VERIFICATION -> REFUSE AGAIN/HANDOFF -> RECEIPT
   decision_packet:
-    contract_version: "1.1"
-    policy_version: evidence-gate-2026-09
-    execution_authorized: false
     includes:
       - evidence_admission_ledger
       - evidence_lineage
       - evidence_lease
       - recovery_requirements
       - tamper_evident_receipt
-  stress_and_sufficiency:
-    rest: GET_/api/v1/decision/{token}/stress
-    mcp: stress_test_decision
-    covers:
-      - single_channel_dropouts
-      - provider_dropouts
-      - minimum_dropouts_to_refusal
-      - minimum_refusal_sets
-      - minimum_sufficient_evidence
   refusal_recovery:
     rest: GET_/api/v1/decision/{token}/recovery-plan
     mcp: plan_evidence_recovery
-    contract: refusal_recovery_v1
-    outputs:
-      - evidence_debt
-      - blocking_conditions
-      - unavailable_signals
-      - safe_reacquisition_candidates
-      - reevaluation_gate
-      - refusal_receipt_id
     guarantees_actionability: false
-    execution_authorized: false
   recovery_verification:
     rest: POST_/api/v1/decision/{token}/verify-recovery
     mcp: verify_evidence_recovery
-    contract: recovery_verification_v1
-    caller_supplies: prior_refusal_recovery_plan
-    statuses:
-      - unchanged_refusal
-      - improved_but_still_refused
-      - degraded_since_refusal
-      - policy_gate_recovered
-    observed_fields:
-      - evidence_repair_observed
-      - recovered_signals
-      - newly_unavailable_signals
-      - resolved_blockers
-      - new_blockers
-      - coverage_gap_delta
-      - confidence_gap_delta
     guarantees_correct_direction: false
     execution_authorized: false
   receipt_integrity:
     rest: POST_/api/v1/decision/verify-receipt
     mcp: verify_decision_receipt
     is_signature: false
-  resilience_benchmark:
-    rest: GET_/api/v1/evidence/resilience-benchmark
-    mcp: run_evidence_resilience_benchmark
-    scope: controlled_policy_conformance_not_market_accuracy
-  durable_compare:
-    rest: POST_/api/v1/decision/{token}/compare
-    mcp: compare_decision_packet
-    persistence: caller_supplied_baseline
 
 mcp_v3:
   endpoint: POST_/mcp
@@ -141,75 +159,43 @@ mcp_v3:
     - inspect_negative_path
     - run_evidence_resilience_benchmark
 
-competitive_scan:
-  field_observation_not_exclusivity_proof: true
-  no_public_PR_term_matches_at_review_time:
-    - evidence_lease
-    - fragility
-    - admission_ledger
-    - minimum_sufficient
-    - recovery_verification
-  closest_known_patterns:
-    BHRIGU: temporal_evidence_and_external_signal_trust
-    Contract_Guard: deterministic_benchmark
-    YAI_Agent_Core: MCP_productization_and_state_model
-    Finfold: operability_and_claim_to_evidence
-    SchemaBridge: narrow_typed_job_and_structured_errors
-    SafeGate: authority_boundary
-    BountyProof: conservative_preflight
-  SignalForge_whitespace_bundle:
-    - raw_source_admission_and_exclusion
-    - provider_lineage_concentration
-    - freshness_lease
-    - current_decision_fragility
-    - minimum_current_policy_sufficiency
-    - explicit_refusal_evidence_debt
-    - safe_reacquisition_plan
-    - observed_recovery_verification
-    - tamper_evident_decision_and_refusal_receipts
-
 important_boundaries:
-  - production_truth_is_still_sha_973ce153_until_new_exact_deploy
-  - v3_branch_features_are_not_public_runtime_proof
+  - live_runtime_is_fork_branch_sha_not_upstream_main
+  - PR_3_is_open_and_unmerged
   - no_auto_merge_upstream
   - no_wallet_or_execution_authority
   - no_synthetic_funding_or_open_interest
   - recovery_does_not_guarantee_actionability
   - observed_repair_does_not_prove_correct_direction_or_profitability
   - evidence_lease_is_freshness_only
-  - minimum_sufficient_evidence_is_current_policy_only_not_causal
   - receipt_is_integrity_digest_not_signature
   - controlled_tests_are_not_historical_replays
-  - five_channels_are_complementary_not_claimed_independent
 
 next_TRACE_UI_UX_v2:
-  status: intentionally_not_started
+  status: ready_after_upstream_merge_and_final_exact_redeploy
   key_visual_object: Evidence_Lifecycle_and_Refusal_Recovery
-  flow: >-
-    RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> FRESHNESS LEASE -> DERIVED EVIDENCE ->
-    COVERAGE/CONFIDENCE GATE -> FRAGILITY/SUFFICIENCY -> REFUSE/HANDOFF -> EVIDENCE DEBT ->
-    RECOVERY PLAN -> REACQUIRE -> RECOVERY VERIFICATION -> REFUSE AGAIN/HANDOFF -> RECEIPT
   avoid:
     - generic_crypto_dashboard
     - price_cards_as_primary_story
     - dark_navy_AI_slop
     - ivory_paper
     - generic_bento
-    - decorative_complexity_without_semantic_work
 
 next_steps:
-  - compare_final_v3_branch_against_opeblow_main
-  - prepare_upstream_v3_PR_for_Opeyemi_without_auto_merge
-  - after_Opeyemi_merge_capture_exact_upstream_main_SHA
-  - deploy_exact_merged_SHA_to_Cloudflare
-  - rerun_core_public_proof_gates
-  - verify_public_capabilities_resilience_stress_recovery_recovery_verification_receipt_and_MCP
-  - only_then_claim_WINNING_INTELLIGENCE_V3_LIVE
+  - Opeyemi_reviews_and_merges_PR_3
+  - capture_exact_upstream_main_SHA
+  - redeploy_exact_merged_upstream_main_SHA_to_Cloudflare
+  - verify_health_and_xagent_exact_commit
+  - verify_capabilities_decision_stress_recovery_resilience
+  - verify_recovery_verification_and_receipt_integrity_publicly
+  - verify_MCP_tools_list_and_at_least_one_tool_call
+  - mark_upstream_main_as_canonical_live
   - then_start_TRACE_UI_UX_v2
 
 submission_ready: false
 submission_blockers:
-  - winning_intelligence_v3_not_upstream_merged
-  - winning_intelligence_v3_not_exact_commit_deployed
-  - expanded_public_v3_runtime_proofs_not_recorded
+  - PR_3_not_upstream_merged
+  - exact_merged_upstream_main_not_deployed
+  - recovery_verification_and_receipt_public_proofs_not_recorded
+  - MCP_tools_list_and_tool_call_public_proofs_not_recorded
   - official_X_Agent_submission_package_not_finalized
