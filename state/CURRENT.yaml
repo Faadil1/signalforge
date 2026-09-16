@@ -1,16 +1,18 @@
 project: signalforge
 workstream: trace_ui_v2_maximal
-status: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_VERIFIED_NOT_DEPLOYED
-canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_VERIFIED_FOR_VISUAL_REVIEW
+status: TRACE_V2_LIVE
+canonical_state: TRACE_V2_LIVE_RUNTIME_BOUND_NAMING_GATE_OPEN
 branch: trace-ui-v2-maximal
 
 production_canon:
   upstream_repository: opeblow/signalforge
   upstream_main_sha: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
   public_origin: https://signalforge.faadil-casecraft.workers.dev
-  cloudflare_version_id: 3188ea49-349e-4950-9740-059888ae9035
+  deployed_source_sha: ada65fe9b2170a910d458f2db9855fe087ca9446
+  cloudflare_version_id: a7d93227-a130-4403-aa37-f992c3bd61ea
+  runtime_evidence_receipt: evidence/runtime/TRACE-V2-LIVE-CLOUDFLARE-2026-09-16.md
   exact_commit_verified: true
-  winning_intelligence_v3_public_proof_complete: true
+  trace_v2_public_proof_complete: true
   allow_mock_fallback: false
   execution_authorized: false
 
@@ -20,8 +22,10 @@ trace_ui_v2:
     SignalForge should feel like a living evidence machine: raw sources enter as colored matter,
     quality policy cuts away what cannot be trusted, refusal becomes a visible event, recovery becomes
     a repair path, and receipts make the resulting state inspectable.
+  headline: "Prove the right to conclude."
   verified_design_code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
-  deployed: false
+  deployed_source_sha: ada65fe9b2170a910d458f2db9855fe087ca9446
+  deployed: true
   merged_upstream: false
   merge_authorized: false
   lifecycle: >-
@@ -61,9 +65,25 @@ verification:
     code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
     result: success
   cloudflare_runtime_verify:
-    run_number: 153
-    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+    run_number: 164
+    code_head: ada65fe9b2170a910d458f2db9855fe087ca9446
+    result: success_compile_only
+  github_production_deploy:
+    run_number: 6
+    code_head: ada65fe9b2170a910d458f2db9855fe087ca9446
+    result: blocked_at_missing_cloudflare_credentials
+    deployment_executed: false
+  local_production_deploy:
+    code_head: ada65fe9b2170a910d458f2db9855fe087ca9446
+    cloudflare_version_id: a7d93227-a130-4403-aa37-f992c3bd61ea
     result: success
+  public_runtime_proof:
+    result: PASS
+    health_commit_bound: true
+    xagent_commit_bound: true
+    data_mode_non_mock: true
+    negative_path_passed: true
+    execution_authorized: false
   verified_gates:
     - backend_tests
     - frontend_lint
@@ -74,6 +94,10 @@ verification:
     - Winning_Intelligence_contract_tests
     - pywrangler_dry_run
     - HTTP_runtime_packaging
+    - exact_commit_public_health_binding
+    - exact_commit_xagent_binding
+    - live_partial_non_mock_evidence
+    - negative_path_abstention
 
 anti_lineages:
   - generic_crypto_dashboard
@@ -85,19 +109,25 @@ anti_lineages:
   - chart_first_product_story
 
 boundaries:
-  - production_remains_Winning_Intelligence_v3_until_explicit_design_deploy
+  - deployed_runtime_source_is_ada65fe9_even_if_documentation_commits_advance_branch_head
+  - trace_v2_is_not_merged_upstream
   - unavailable_evidence_must_remain_visually_unavailable
   - recovery_does_not_guarantee_actionability
   - evidence_lease_does_not_guarantee_forecast_validity
   - receipt_is_not_signature_or_external_truth
   - execution_authorized_false
   - do_not_merge_without_explicit_user_authorization
+  - do_not_rename_slug_api_or_worker_until_naming_migration_is_explicitly_authorized
 
 next_gate:
-  - local_or_preview_visual_review_desktop_mobile
-  - reduced_motion_and_accessibility_review
-  - collision_uniqueness_review
-  - iterate_visual_feedback
-  - only_then_prepare_upstream_PR
+  name: NAMING_GATE
+  status: OPEN
+  tasks:
+    - collision_search_github_web_domains
+    - semantic_fit_against_right_to_conclude_mechanism
+    - pronounceability_and_memory_test
+    - identity_and_wordmark_direction
+    - migration_cost_and_slug_compatibility_review
+    - preserve_signalforge_runtime_identifiers_until_rename_authorized
 
 submission_ready: false
