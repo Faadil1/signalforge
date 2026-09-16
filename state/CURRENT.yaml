@@ -1,7 +1,7 @@
 project: signalforge
 workstream: trace_ui_v2_maximal
 status: TRACE_V2_LIVE
-canonical_state: TRACE_V2_LIVE_NAMING_GATE_NO_RENAME_YET
+canonical_state: TRACE_V2_LIVE_NAMING_GENERATION_2_SUFFIRA_FRONT_RUNNER
 branch: trace-ui-v2-maximal
 
 production_canon:
@@ -120,32 +120,35 @@ boundaries:
   - do_not_rename_slug_api_or_worker_until_naming_migration_is_explicitly_authorized
 
 naming_gate:
-  status: NO_RENAME_YET
-  record: docs/NAMING-GATE-2026-09-16.md
+  initial_record: docs/NAMING-GATE-2026-09-16.md
+  generation_2_record: docs/NAMING-GENERATION-2-2026-09-16.md
   canonical_runtime_name: SignalForge
-  screened_and_rejected:
-    - CLEARANCE
-    - THRESHOLD
-    - PROOFLATCH
-    - RIGHT_TO_ACT
-    - GROUNDCLEAR
-    - ADMITLINE
-  adjacent_territory_to_avoid:
-    - CLAIMBOUND
-    - WARRANT
-    - WARRANTGATE
-  rule: preserve_signalforge_identifiers_until_a_new_candidate_passes_full_gate_and_migration_is_explicitly_authorized
+  migration_authorized: false
+  provisional_front_runner: SUFFIRA
+  provisional_front_runner_status: REQUIRES_FINAL_CLEARANCE
+  backup_only:
+    - ADMISTRA
+  generation_2_rejected:
+    - EPISTATE
+    - ADDUCE
+    - SIFTMARK
+    - PREMISS
+    - VERIDUCT
+    - INFERLOCK
+    - CLAIMRAIL
+    - CREDAL
+  rule: preserve_signalforge_identifiers_until_SUFFIRA_or_another_candidate_passes_full_final_clearance_and_migration_is_explicitly_authorized
 
 next_gate:
-  name: NAMING_GENERATION_2
+  name: SUFFIRA_FINAL_CLEARANCE
   status: OPEN
   tasks:
-    - generate_fresh_non_obvious_brand_family
-    - screen_adjacent_AI_evidence_agent_governance_collisions
-    - screen_search_distinctiveness
-    - test_pronounceability_and_judge_memory
-    - test_identity_and_wordmark_fit
-    - preliminary_domain_and_trademark_screen
-    - migration_cost_review_before_any_rename
+    - exact_domain_availability_and_acquisition_risk
+    - preliminary_trademark_and_confusion_screen
+    - package_registry_collision_sweep
+    - english_pronunciation_and_demo_memory_test
+    - prismatic_wordmark_and_identity_test
+    - full_migration_map
+    - proof_continuity_plan_for_historical_SignalForge_receipts
 
 submission_ready: false
