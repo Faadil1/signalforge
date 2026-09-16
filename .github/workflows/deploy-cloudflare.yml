@@ -8,7 +8,7 @@ on:
         required: false
         type: string
   push:
-    branches: [cloudflare-runtime]
+    branches: [cloudflare-runtime, trace-ui-v2-maximal]
     paths:
       - .cloudflare-deploy-trigger
 
