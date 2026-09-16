@@ -1,150 +1,98 @@
 project: signalforge
-handover_type: trace_ui_v2_prismatic_candidate
+handover_type: trace_ui_v2_prismatic_verified_not_deployed
 branch: trace-ui-v2-maximal
-current_state: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_CANDIDATE
-canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_IN_REVIEW
+current_state: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_VERIFIED_NOT_DEPLOYED
+canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_VERIFIED_FOR_VISUAL_REVIEW
 
 objective: >-
-  Preserve the maximal TRACE UI/UX v2 implementation without changing the canonical production runtime.
-  The product/runtime canon remains upstream opeblow/main at dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad;
-  this branch is a design candidate that must be visually reviewed before any merge or deployment.
+  Preserve the verified maximal TRACE UI/UX v2 implementation while keeping production unchanged.
+  The product/runtime canon remains upstream opeblow/main at dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad.
 
 production_truth:
-  upstream_repository: opeblow/signalforge
-  upstream_main_sha: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
   public_origin: https://signalforge.faadil-casecraft.workers.dev
+  deployed_source_sha: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
   cloudflare_version_id: 3188ea49-349e-4950-9740-059888ae9035
-  exact_commit_verified: true
   winning_intelligence_v3_public_proof_complete: true
   allow_mock_fallback: false
   execution_authorized: false
 
 trace_v2:
   direction: PRISMATIC_EVIDENCE_FOUNDRY
-  design_code_checkpoint: 3f64225425d53e2beef9dae9f28600a4d3789b04
+  verified_design_code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
   deployed: false
   merged_upstream: false
   merge_authorized: false
-  core_visual_thesis: >-
-    Turn the evidence lifecycle itself into the primary visual object: sources become colored matter,
-    admission/exclusion is visible, freshness expires, the policy gate can visibly close, evidence debt stacks,
-    recovery draws a repair path, and the lifecycle closes with an inspectable receipt.
-  lifecycle:
-    - raw_source
-    - admission_exclusion
-    - provider_lineage
-    - evidence_lease
-    - policy_gate
-    - fragility_sufficiency
-    - refusal
-    - evidence_debt
-    - recovery_plan
-    - recovery_verification
-    - receipt
-  color_semantics:
-    cobalt_source: "#3257FF"
-    cyan_admission: "#00C9E8"
-    acid_lime_lease: "#C6F432"
-    ultraviolet_gate: "#6E46FF"
-    hot_coral_refusal: "#FF4F73"
-    orange_debt: "#FF8A1F"
-    magenta_recovery: "#E73DFF"
-    ink_receipt: "#171522"
-    porcelain_field: "#EEF3FF"
-
-implemented_routes:
-  landing:
-    role: lifecycle_engine_and_product_thesis
-    headline: "Prove the right to conclude."
-  dashboard:
-    role: live_decision_gate
-  token:
-    role: forensic_evidence_dossier
-  judge:
-    role: full_WI_v3_live_proof_chain
-    probe_count: 14
-  playground:
-    role: agent_contract_interface
-  strategies:
-    role: calibration_lab
-
-signature_components:
-  - LifecycleEngine
-  - DecisionGate
-  - EvidenceLease
-  - EvidenceDebt
-  - ReceiptStrip
-
-reference_roles:
-  product_flow:
-    - Mobbin
-    - Pageflows
-    - Femke
-  graphic_system:
-    - Studio_Thonik
-    - Annual_Report_Gallery
-    - Cue_Design
-    - Inspora
-  motion_interaction:
-    - Rare_UI
-    - Transitions_dev
-    - Motion_Primitives
-    - 60FPS_Design
-    - Emil_Kowalski
-  creative_code:
-    - React_Bits
-    - Canvas_UI
-    - Codrops
-    - Aceternity_UI
-  QA:
-    - shadcn_ui
-    - COSS_UI
-    - Component_Gallery
-    - UI_Skills
-    - Design_System_Checklist
-
-motion_rules:
-  semantic_only: true
-  reduced_motion_supported: true
-  refusal_pulse_once_not_looped: true
-  lifecycle_state_transitions: true
-  decorative_animation_as_default: false
-
-anti_lineages:
-  - generic_crypto_dashboard
-  - dark_navy_AI_slop
-  - ivory_paper
-  - glassmorphism_everywhere
-  - generic_bento
-  - cyberpunk_terminal_cosplay
-  - chart_first_market_product
+  headline: "Prove the right to conclude."
+  product_flow: >-
+    RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> EVIDENCE LEASE -> POLICY GATE ->
+    FRAGILITY/SUFFICIENCY -> REFUSAL -> EVIDENCE DEBT -> RECOVERY -> VERIFICATION -> RECEIPT
+  implemented_routes:
+    landing: lifecycle_engine
+    dashboard: live_decision_gate
+    token: forensic_evidence_dossier
+    judge: 14_step_live_proof_chain
+    playground: agent_contract_interface
+    strategies: calibration_lab
+  signature_components:
+    - LifecycleEngine
+    - DecisionGate
+    - EvidenceLease
+    - EvidenceDebt
+    - ReceiptStrip
+  reference_stack_used:
+    product_flow:
+      - Mobbin
+      - Pageflows
+      - Femke
+    graphic_system:
+      - Studio_Thonik
+      - Annual_Report_Gallery
+      - Cue_Design
+      - Inspora
+    motion:
+      - Rare_UI
+      - Transitions_dev
+      - Motion_Primitives
+      - 60FPS_Design
+      - Emil_Kowalski
+    creative_engineering:
+      - React_Bits
+      - Canvas_UI
+      - Codrops
+      - Aceternity_UI
+    QA:
+      - shadcn_ui
+      - COSS_UI
+      - Component_Gallery
+      - UI_Skills
+      - Design_System_Checklist
 
 verification:
   standard_ci:
-    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
     run_number: 109
+    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
     result: success
   cloudflare_runtime_verify:
-    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
     run_number: 153
-    result: pending_at_handover_write
+    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+    result: success
 
 important_boundaries:
-  - production_is_not_TRACE_v2
-  - do_not_claim_design_live_before_exact_commit_deploy
-  - do_not_merge_without_explicit_user_authorization
-  - unavailable_evidence_must_remain_visually_unavailable
-  - policy_gate_pass_does_not_equal_execution_authority
-  - recovery_does_not_guarantee_actionability
-  - receipt_is_not_signature_or_external_truth
-  - evidence_lease_is_freshness_only
+  - TRACE_v2_is_not_live_production
+  - production_runtime_remains_dea03f9a
+  - no_UI_state_may_invent_missing_evidence
+  - recovery_visuals_do_not_guarantee_actionability
+  - lease_visuals_do_not_guarantee_forecast_validity
+  - receipt_visuals_do_not_claim_signature_or_external_truth
+  - execution_authorized_false
+  - no_upstream_merge_without_explicit_user_authorization
 
 next_steps:
-  - confirm_Cloudflare_runtime_verify_green_on_design_code_checkpoint
-  - preview_branch_locally_or_on_noncanonical_preview
-  - perform_desktop_mobile_reduced_motion_and_collision_review
-  - capture_visual_feedback
+  - preview_trace_ui_v2_locally_or_noncanonical_preview
+  - inspect_desktop_mobile_and_reduced_motion
+  - collect_visual_feedback_and_collision_review
   - iterate_if_needed
-  - only_after_user_approval_prepare_upstream_PR
+  - prepare_upstream_PR_only_after_user_approval
+  - exact_commit_deploy_only_after_merge_or_explicit_preview_authorization
 
 submission_ready: false
