@@ -79,6 +79,7 @@ def test_tools_list_is_deterministic_and_read_only() -> None:
         "get_decision_packet",
         "compare_decision_packet",
         "stress_test_decision",
+        "plan_evidence_recovery",
         "verify_decision_receipt",
         "validate_price_signals",
         "inspect_negative_path",
@@ -157,6 +158,38 @@ def test_resilience_benchmark_tool_returns_structured_conformance_result() -> No
     assert result["structuredContent"]["summary"]["total"] == 4
     assert result["structuredContent"]["summary"]["policy_conformance_rate"] == 1.0
     assert result["structuredContent"]["not_a_historical_replay"] is True
+
+
+def test_recovery_tool_is_present_and_preserves_authority_boundary(monkeypatch) -> None:
+    import routes.mcp as mcp_route
+
+    async def fake_recovery(_token: str):
+        return {
+            "ok": True,
+            "contract": "refusal_recovery_v1",
+            "status": "refused",
+            "refusal_receipt_id": "receipt-123",
+            "evidence_debt": {"confidence_gap": 0.04},
+            "recovery_candidates": [],
+            "execution_authorized": False,
+        }
+
+    monkeypatch.setattr(mcp_route, "get_recovery_plan", fake_recovery)
+    name = "plan_evidence_recovery"
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            headers=_headers("tools/call", name),
+            json=_request("tools/call", name=name, arguments={"token": "BTC"}),
+        )
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is False
+    payload = result["structuredContent"]
+    assert payload["contract"] == "refusal_recovery_v1"
+    assert payload["status"] == "refused"
+    assert payload["execution_authorized"] is False
 
 
 def test_receipt_tool_fails_closed_when_receipt_is_missing() -> None:
