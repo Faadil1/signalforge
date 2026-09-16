@@ -1,18 +1,16 @@
 project: signalforge
 workstream: trace_ui_v2_maximal
-status: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_CANDIDATE
-canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_IN_REVIEW
+status: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_VERIFIED_NOT_DEPLOYED
+canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_VERIFIED_FOR_VISUAL_REVIEW
 branch: trace-ui-v2-maximal
 
-canonical_product:
+production_canon:
   upstream_repository: opeblow/signalforge
   upstream_main_sha: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
-  winning_intelligence_v3_merged: true
-  public_runtime: https://signalforge.faadil-casecraft.workers.dev
+  public_origin: https://signalforge.faadil-casecraft.workers.dev
   cloudflare_version_id: 3188ea49-349e-4950-9740-059888ae9035
-  runtime_commit: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
   exact_commit_verified: true
-  public_proof_complete: true
+  winning_intelligence_v3_public_proof_complete: true
   allow_mock_fallback: false
   execution_authorized: false
 
@@ -22,78 +20,40 @@ trace_ui_v2:
     SignalForge should feel like a living evidence machine: raw sources enter as colored matter,
     quality policy cuts away what cannot be trusted, refusal becomes a visible event, recovery becomes
     a repair path, and receipts make the resulting state inspectable.
-  product_story: >-
+  verified_design_code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+  deployed: false
+  merged_upstream: false
+  merge_authorized: false
+  lifecycle: >-
     RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> EVIDENCE LEASE -> POLICY GATE ->
     FRAGILITY/SUFFICIENCY -> REFUSAL -> EVIDENCE DEBT -> RECOVERY -> VERIFICATION -> RECEIPT
-  design_code_checkpoint: 3f64225425d53e2beef9dae9f28600a4d3789b04
-  production_deployed: false
-  merge_authorized: false
   implemented_surfaces:
     - landing_lifecycle_engine
-    - live_decision_gate
-    - forensic_evidence_dossier
-    - full_v3_judge_proof_chain
-    - agent_contract_interface
-    - calibration_lab
-    - desktop_lifecycle_navigation
-    - mobile_lifecycle_navigation
-    - prismatic_logo_and_favicon
+    - dashboard_live_decision_gate
+    - token_forensic_evidence_dossier
+    - judge_14_step_live_proof_chain
+    - playground_agent_contract_interface
+    - strategies_calibration_lab
+    - desktop_mobile_lifecycle_navigation
+    - prismatic_identity_logo_favicon
   signature_components:
     - LifecycleEngine
     - DecisionGate
     - EvidenceLease
     - EvidenceDebt
     - ReceiptStrip
-  color_semantics:
-    raw_source: "#3257FF"
-    admitted_evidence: "#00C9E8"
-    freshness_lease: "#C6F432"
-    policy_gate: "#6E46FF"
-    refusal: "#FF4F73"
-    evidence_debt: "#FF8A1F"
-    recovery: "#E73DFF"
-    receipt: "#171522"
-    field: "#EEF3FF"
-  reduced_motion: implemented
-  responsive_lifecycle: implemented
-
-reference_routing:
-  flow:
-    - Mobbin
-    - Pageflows
-    - Femke
-  art_direction:
-    - Studio_Thonik
-    - Annual_Report_Gallery
-    - Cue_Design
-    - Inspora
-  interaction:
-    - Rare_UI
-    - Transitions_dev
-    - Motion_Primitives
-    - 60FPS_Design
-    - Emil_Kowalski
-  creative_engineering:
-    - React_Bits
-    - Canvas_UI
-    - Codrops
-    - Aceternity_UI
-  component_qa:
-    - shadcn_ui
-    - COSS_UI
-    - Component_Gallery
-    - UI_Skills
-    - Design_System_Checklist
-
-anti_lineages:
-  - generic_crypto_dashboard
-  - black_navy_AI_SaaS
-  - ivory_editorial_paper
-  - glassmorphism_everywhere
-  - generic_bento_marketing
-  - neon_cyberpunk_terminal
-  - price_chart_as_primary_story
-  - decorative_shader_without_product_meaning
+  colors:
+    source_cobalt: "#3257FF"
+    admission_cyan: "#00C9E8"
+    lease_lime: "#C6F432"
+    gate_violet: "#6E46FF"
+    refusal_coral: "#FF4F73"
+    debt_orange: "#FF8A1F"
+    recovery_magenta: "#E73DFF"
+    receipt_ink: "#171522"
+    field_porcelain_blue: "#EEF3FF"
+  responsive: true
+  reduced_motion: true
 
 verification:
   standard_ci:
@@ -103,25 +63,41 @@ verification:
   cloudflare_runtime_verify:
     run_number: 153
     code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
-    result: pending_at_state_write
+    result: success
+  verified_gates:
+    - backend_tests
+    - frontend_lint
+    - frontend_typecheck
+    - frontend_build
+    - static_export
+    - FastAPI_Cloudflare_import
+    - Winning_Intelligence_contract_tests
+    - pywrangler_dry_run
+    - HTTP_runtime_packaging
+
+anti_lineages:
+  - generic_crypto_dashboard
+  - black_navy_AI_SaaS
+  - ivory_paper
+  - generic_bento
+  - glassmorphism_everywhere
+  - cyberpunk_terminal_cosplay
+  - chart_first_product_story
 
 boundaries:
-  - TRACE_v2_is_not_publicly_deployed
-  - production_remains_exact_upstream_WI_v3_commit
-  - no_UI_state_may_imply_missing_evidence_exists
-  - recovery_visuals_must_not_imply_guaranteed_actionability
-  - lease_visuals_must_not_imply_forecast_validity
-  - receipt_visuals_must_not_imply_signature_or_external_truth
-  - no_execution_authority
+  - production_remains_Winning_Intelligence_v3_until_explicit_design_deploy
+  - unavailable_evidence_must_remain_visually_unavailable
+  - recovery_does_not_guarantee_actionability
+  - evidence_lease_does_not_guarantee_forecast_validity
+  - receipt_is_not_signature_or_external_truth
+  - execution_authorized_false
+  - do_not_merge_without_explicit_user_authorization
 
 next_gate:
-  - Cloudflare_dry_run_green_on_design_checkpoint
-  - local_or_preview_visual_review_desktop_and_mobile
-  - TRACE_collision_and_accessibility_review
+  - local_or_preview_visual_review_desktop_mobile
+  - reduced_motion_and_accessibility_review
+  - collision_uniqueness_review
+  - iterate_visual_feedback
   - only_then_prepare_upstream_PR
 
 submission_ready: false
-submission_blockers:
-  - TRACE_v2_visual_review_not_completed
-  - TRACE_v2_not_merged_or_deployed
-  - official_X_Agent_submission_package_not_finalized
