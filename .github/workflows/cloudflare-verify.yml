@@ -2,7 +2,7 @@ name: Cloudflare Runtime Verify
 
 on:
   push:
-    branches: [cloudflare-runtime, winning-intelligence-v2, winning-intelligence-v3]
+    branches: [cloudflare-runtime, winning-intelligence-v2, winning-intelligence-v3, trace-ui-v2-maximal]
   workflow_dispatch:
 
 concurrency:
