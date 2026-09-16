@@ -1,291 +1,181 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { clsx } from "clsx";
-import { Crosshair, RefreshCw, Search, ArrowUpRight, Layers3 } from "lucide-react";
+import { motion } from "framer-motion";
 import {
-  fetchTickers,
-  isSignalOk,
-  safeJson,
-  type MarketCards,
-  type SignalCard,
-  type SubSignal,
+  ArrowRight,
+  Check,
+  Database,
+  GitBranch,
+  RefreshCw,
+  Search,
+  ShieldOff,
+  TriangleAlert,
+} from "lucide-react";
+import {
+  fetchDecisionPacket,
+  fetchRecoveryPlan,
+  fetchStressResult,
+  fetchTicker,
+  type DecisionPacket,
+  type RecoveryPlan,
+  type StressResult,
   type Ticker,
 } from "@/lib/api";
 import { useInterval } from "@/lib/useInterval";
-import { PriceTicker } from "@/components/market/PriceTicker";
-import { RecommendationBadge } from "@/components/signal/RecommendationBadge";
 import { Button } from "@/components/ui/Button";
-import { AtlasPanel } from "@/components/atlas/AtlasPanel";
-import { EvidenceRail } from "@/components/atlas/EvidenceRail";
-import { ActionabilityGate } from "@/components/atlas/ActionabilityGate";
+import { DecisionGate } from "@/components/forge/DecisionGate";
+import { EvidenceLease } from "@/components/forge/EvidenceLease";
+import { EvidenceDebt } from "@/components/forge/EvidenceDebt";
+import { ReceiptStrip } from "@/components/forge/ReceiptStrip";
 
-const POLL_MS = 10_000;
-const TICKER_POLL_MS = 4_000;
+const POLL_MS = 12_000;
+const QUICK = ["BTC", "ETH", "SOL", "BNB"];
 
-type SignalRow = {
-  token: string;
-  price?: number;
-  score?: number;
-  confidence?: number;
-  recommendation?: string;
-  subSignals?: SubSignal[];
-  provider?: string;
-  sources?: Record<string, string>;
-  coverage?: number;
-  actionability?: string;
-  executionAuthorized?: boolean;
-  error?: string;
-};
-
-function cardToRow(card: SignalCard): SignalRow {
-  if (isSignalOk(card)) {
-    return {
-      token: card.token,
-      price: card.price,
-      score: card.score,
-      confidence: card.confidence,
-      recommendation: card.recommendation,
-      subSignals: card.sub_signals,
-      provider: card.source_meta?.provider,
-      sources: card.source_meta?.sources,
-      coverage: card.coverage,
-      actionability: card.actionability,
-      executionAuthorized: card.execution_authorized,
-    };
-  }
-  return { token: card.token, error: card.error.message };
-}
-
-function secondsAgo(date: Date | null): string {
-  if (!date) return "—";
-  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
-  if (seconds < 5) return "NOW";
-  if (seconds < 60) return `${seconds}S`;
-  return `${Math.round(seconds / 60)}M`;
-}
-
-function providerLabel(provider?: string): string {
-  if (provider === "multi_provider_public") return "MULTI-PROVIDER";
-  if (provider === "binance_public") return "BINANCE PUBLIC";
-  if (provider === "coinbase_exchange") return "COINBASE";
-  if (provider === "mock") return "MOCK";
-  return "PROVENANCE PENDING";
-}
-
-function scoreTone(score?: number) {
-  if (score == null) return "text-text-subtle";
-  if (score >= 60) return "text-positive";
-  if (score < 40) return "text-negative";
-  return "text-text";
+function pct(value?: number) {
+  return value == null ? "—" : `${Math.round(value * 100)}%`;
 }
 
 export default function DashboardPage() {
-  const [signals, setSignals] = useState<SignalRow[]>([]);
-  const [selected, setSelected] = useState<SignalRow | null>(null);
-  const [tickers, setTickers] = useState<Ticker[]>([]);
-  const [search, setSearch] = useState("");
-  const [quickToken, setQuickToken] = useState("");
+  const [token, setToken] = useState("BTC");
+  const [input, setInput] = useState("BTC");
+  const [packet, setPacket] = useState<DecisionPacket | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryPlan | null>(null);
+  const [stress, setStress] = useState<StressResult | null>(null);
+  const [ticker, setTicker] = useState<Ticker | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [, setNow] = useState(Date.now());
 
-  useInterval(() => setNow(Date.now()), 1000);
-
-  const pollTickers = useCallback(async () => {
-    const next = await fetchTickers();
-    if (next.length) setTickers(next);
+  const load = useCallback(async (nextToken: string, quiet = false) => {
+    if (!quiet) setLoading(true);
+    const [nextPacket, nextRecovery, nextStress, nextTicker] = await Promise.all([
+      fetchDecisionPacket(nextToken),
+      fetchRecoveryPlan(nextToken),
+      fetchStressResult(nextToken),
+      fetchTicker(nextToken),
+    ]);
+    setPacket(nextPacket);
+    setRecovery(nextRecovery);
+    setStress(nextStress);
+    setTicker(nextTicker);
+    setError(nextPacket ? null : `Could not load a Decision Packet for ${nextToken}.`);
+    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    void pollTickers();
-  }, [pollTickers]);
-  useInterval(pollTickers, TICKER_POLL_MS);
+  useEffect(() => { void load("BTC"); }, [load]);
+  useInterval(() => void load(token, true), POLL_MS);
 
-  const loadSignals = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      const response = await fetch("/api/v1/overview");
-      const data = await safeJson<MarketCards>(response, { market_cards: [] });
-      const rows = (data.market_cards || []).map(cardToRow);
-      setSignals(rows);
-      setSelected((previous) => {
-        if (previous) return rows.find((row) => row.token === previous.token) || previous;
-        return rows.find((row) => row.score != null && !row.error) || null;
-      });
-      setLastUpdated(new Date());
-    } catch (cause) {
-      if (!silent) setError(cause instanceof Error ? cause.message : "Observation field unavailable");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadSignals();
-  }, [loadSignals]);
-  useInterval(() => void loadSignals(true), POLL_MS);
-
-  const loadDetail = useCallback(async (token: string) => {
-    try {
-      const response = await fetch(`/api/v1/signal/${token}`);
-      const card = await safeJson<SignalCard>(response, {
-        ok: false,
-        token,
-        error: { code: "UNPARSEABLE", message: "Unexpected response" },
-      });
-      const row = cardToRow(card);
-      setSelected(row);
-      setSignals((previous) => {
-        const index = previous.findIndex((item) => item.token === row.token);
-        if (index === -1) return [...previous, row];
-        const next = [...previous];
-        next[index] = row;
-        return next;
-      });
-      setLastUpdated(new Date());
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : `Failed to inspect ${token}`);
-    }
-  }, []);
-
-  const tickerByToken = useMemo(() => new Map(tickers.map((ticker) => [ticker.token, ticker])), [tickers]);
-  const liveRows = signals.filter((row) => row.score != null && !row.error);
-  const filtered = signals.filter((row) => row.token.toLowerCase().includes(search.toLowerCase()));
-  const averageCoverage = liveRows.length ? liveRows.reduce((sum, row) => sum + (row.coverage || 0), 0) / liveRows.length : 0;
-  const averageConfidence = liveRows.length ? liveRows.reduce((sum, row) => sum + (row.confidence || 0), 0) / liveRows.length : 0;
-  const provider = liveRows.find((row) => row.provider)?.provider;
-
-  const inspectQuick = () => {
-    const token = quickToken.trim().toUpperCase();
-    if (!token) return;
-    void loadDetail(token);
+  const inspect = (nextToken: string) => {
+    const normalized = nextToken.trim().toUpperCase();
+    if (!normalized) return;
+    setToken(normalized);
+    setInput(normalized);
+    void load(normalized);
   };
 
+  const ledger = packet?.evidence_admission_ledger?.entries || [];
+  const admitted = ledger.filter((entry) => entry.decision_admitted);
+  const excluded = ledger.filter((entry) => !entry.decision_admitted);
+  const unavailable = packet?.data_quality.quality_summary?.unavailable_sources || [];
+  const liveProviders = packet?.evidence_lineage?.unique_live_providers || [];
+  const refusing = packet?.actionability === "insufficient_evidence";
+
+  const marketPrice = useMemo(() => ticker?.price ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(ticker.price)}` : "—", [ticker]);
+
   return (
-    <div className="space-y-5">
-      <header className="grid gap-5 border-b border-border pb-5 lg:grid-cols-[1fr_auto] lg:items-end">
+    <div className="space-y-7">
+      <header className="grid gap-6 border-b border-border/70 pb-6 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
-          <p className="field-label">01 / OBSERVATION FIELD</p>
-          <div className="mt-3 flex flex-wrap items-end gap-x-5 gap-y-2">
-            <h1 className="text-4xl font-semibold tracking-[-0.045em] text-text md:text-5xl">Market evidence, under load.</h1>
-            <span className="atlas-stamp atlas-stamp-live">AUTO REFRESH / {secondsAgo(lastUpdated)}</span>
-          </div>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-text-secondary">
-            Composite market observations with source provenance, exclusion states and actionability boundaries exposed in the same frame.
-          </p>
+          <p className="forge-eyebrow">05 / DECISION GATE</p>
+          <h1 className="forge-display mt-5 text-5xl font-semibold text-text md:text-7xl">One market.<br />Every reason to trust — or refuse it.</h1>
+          <p className="mt-5 max-w-3xl text-sm leading-6 text-text-secondary">This surface is organized by evidence state, not by price performance. The gate cannot hide missing inputs behind a score.</p>
         </div>
-        <Button variant="secondary" onClick={() => { setRefreshing(true); void loadSignals(); }} loading={refreshing}>
-          <RefreshCw className="h-4 w-4" /> Re-scan field
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {QUICK.map((item) => (
+            <button key={item} onClick={() => inspect(item)} className={`chip font-mono text-[9px] uppercase tracking-[0.14em] transition ${token === item ? "border-prism-violet bg-prism-violet text-white" : "border-border bg-white/70 text-text-secondary hover:border-prism-violet/50"}`}>{item}</button>
+          ))}
+          <div className="relative ml-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
+            <input className="input w-32 pl-9 font-mono" value={input} maxLength={10} onChange={(event) => setInput(event.target.value.toUpperCase())} onKeyDown={(event) => event.key === "Enter" && inspect(input)} aria-label="Market token" />
+          </div>
+          <Button variant="secondary" onClick={() => void load(token)} loading={loading}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+        </div>
       </header>
 
-      <div className="survey-strip">
-        <div className="survey-cell col-span-6 sm:col-span-3"><p className="atlas-micro">markets loaded</p><p className="mt-1 font-mono text-2xl font-semibold text-text">{liveRows.length}</p></div>
-        <div className="survey-cell col-span-6 sm:col-span-3"><p className="atlas-micro">mean coverage</p><p className="mt-1 font-mono text-2xl font-semibold text-text">{Math.round(averageCoverage * 100)}%</p></div>
-        <div className="survey-cell col-span-6 sm:col-span-3"><p className="atlas-micro">mean confidence</p><p className="mt-1 font-mono text-2xl font-semibold text-text">{Math.round(averageConfidence * 100)}%</p></div>
-        <div className="survey-cell col-span-6 sm:col-span-3"><p className="atlas-micro">active provider</p><p className="mt-1 font-mono text-[12px] font-semibold text-text">{providerLabel(provider)}</p></div>
-      </div>
+      {error && <div className="border border-prism-coral/40 bg-prism-coral/10 px-4 py-3 font-mono text-[10px] text-prism-coral">GATE ERROR / {error}</div>}
 
-      {error && <div className="border border-negative/40 bg-negative/5 px-4 py-3 font-mono text-[11px] text-negative">FIELD ERROR / {error}</div>}
+      <section className="grid gap-px overflow-hidden border border-border bg-border lg:grid-cols-6">
+        {[
+          ["market", token, "#3257FF"],
+          ["price context", marketPrice, "#00C9E8"],
+          ["score", packet ? packet.score.toFixed(1) : "—", "#6E46FF"],
+          ["coverage", pct(packet?.coverage), "#6E46FF"],
+          ["confidence", pct(packet?.confidence), refusing ? "#FF4F73" : "#00C9E8"],
+          ["authority", "NONE", "#FF4F73"],
+        ].map(([label, value, color]) => (
+          <div key={label} className="relative bg-white/82 p-4">
+            <span className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
+            <p className="font-mono text-[8px] uppercase tracking-[0.17em] text-text-subtle">{label}</p>
+            <p className="mt-2 truncate font-mono text-lg font-semibold text-text">{value}</p>
+          </div>
+        ))}
+      </section>
 
-      <div className="grid gap-5 xl:grid-cols-12">
-        <AtlasPanel label="Market Strata" code="FIELD-A" meta={`${filtered.length} records`} className="xl:col-span-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
-              <input className="input-sm pl-9" placeholder="filter market" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <DecisionGate packet={packet} />
+
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
+        <div className="forge-panel overflow-hidden">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 bg-white/60 px-5 py-4 md:px-6">
+            <div><p className="forge-eyebrow">02 / ADMISSION LEDGER</p><h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-text">What actually entered the decision?</h2></div>
+            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-subtle">{admitted.length} admitted / {excluded.length} excluded</span>
+          </div>
+          <div className="divide-y divide-border/70">
+            {ledger.map((entry, index) => (
+              <motion.div key={entry.raw_source} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * .03 }} className={`grid gap-3 px-5 py-4 md:grid-cols-[42px_1fr_110px_140px] md:items-center md:px-6 ${entry.decision_admitted ? "bg-prism-cyan/[0.045]" : "hatch-excluded bg-prism-coral/[0.035]"}`}>
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full border-4 border-white shadow-card ${entry.decision_admitted ? "bg-prism-cyan" : "bg-prism-coral"}`}>{entry.decision_admitted ? <Check className="h-4 w-4 text-prism-ink" /> : <TriangleAlert className="h-4 w-4 text-prism-ink" />}</div>
+                <div><p className="font-semibold text-text">{entry.raw_source.replaceAll("_", " ")}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-text-subtle">{entry.provider} · {entry.freshness_status}</p></div>
+                <div><p className="atlas-micro">used by</p><p className="mt-1 font-mono text-[9px] leading-4 text-text-secondary">{(entry.admitted_signals || []).join(", ") || "none"}</p></div>
+                <span className={`chip justify-center font-mono text-[8px] uppercase tracking-[0.12em] ${entry.decision_admitted ? "border-prism-cyan/40 bg-prism-cyan/12 text-prism-ink" : "border-prism-coral/40 bg-prism-coral/10 text-prism-coral"}`}>{entry.reason_code}</span>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="forge-panel p-5 md:p-6">
+            <div className="flex items-center gap-2"><GitBranch className="h-5 w-5 text-prism-cobalt" /><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-prism-cobalt">03 / LINEAGE</p></div>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-text">Provider concentration stays visible.</h2>
+            <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden border border-border bg-border">
+              <div className="bg-white/82 p-4"><p className="atlas-micro">dominant provider</p><p className="mt-2 font-mono text-[12px] font-semibold text-text">{packet?.evidence_lineage?.dominant_provider || "pending"}</p></div>
+              <div className="bg-white/82 p-4"><p className="atlas-micro">concentration</p><p className="mt-2 font-mono text-[12px] font-semibold text-prism-coral">{packet?.evidence_lineage?.concentration_level || "pending"}</p></div>
             </div>
-            <div className="field-label">click row to inspect evidence packet</div>
+            <div className="mt-5 space-y-2">{liveProviders.map((provider) => <div key={provider} className="flex items-center gap-3 border-b border-border/70 py-2"><Database className="h-4 w-4 text-prism-cyan" /><span className="font-mono text-[10px] text-text-secondary">{provider}</span></div>)}</div>
+            <p className="mt-4 font-mono text-[8px] uppercase leading-4 tracking-[0.13em] text-text-subtle">Lineage diagnostic ≠ statistical independence.</p>
           </div>
 
-          <div className="border-y border-border">
-            <div className="hidden grid-cols-[80px_1fr_96px_140px_110px] gap-3 border-b border-border py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-text-subtle md:grid">
-              <span>market</span><span>evidence contour</span><span>score</span><span>stance</span><span>coverage</span>
-            </div>
-            {loading && !signals.length ? (
-              <div className="space-y-2 py-4">{[0,1,2,3].map((index) => <div key={index} className="skeleton h-16 w-full" />)}</div>
-            ) : filtered.map((row, index) => {
-              const active = selected?.token === row.token;
-              const usable = row.subSignals?.filter((signal) => signal.available) || [];
-              return (
-                <button
-                  key={row.token}
-                  type="button"
-                  onClick={() => !row.error && void loadDetail(row.token)}
-                  className={clsx(
-                    "grid w-full gap-3 border-b border-border py-4 text-left transition-colors last:border-b-0 md:grid-cols-[80px_1fr_96px_140px_110px] md:items-center",
-                    active ? "bg-brand/[0.055]" : "hover:bg-surface-secondary/45",
-                    row.error && "cursor-not-allowed opacity-55"
-                  )}
-                >
-                  <div className="px-2 md:px-0">
-                    <p className="font-mono text-[9px] text-text-subtle">0{index + 1}</p>
-                    <p className="mt-1 font-mono text-base font-semibold text-text">{row.token}</p>
-                    <PriceTicker price={tickerByToken.get(row.token)?.price ?? row.price} changePct={tickerByToken.get(row.token)?.price_change_pct} className="text-[10px] text-text-subtle" />
-                  </div>
-                  <div className="px-2 md:px-0">
-                    {row.error ? <p className="font-mono text-[10px] text-negative">UNAVAILABLE / {row.error}</p> : (
-                      <div className="grid grid-cols-5 gap-1">
-                        {(row.subSignals || []).map((signal) => (
-                          <div key={signal.name} className={clsx("h-7 border", signal.available ? "border-brand/30 bg-brand/[0.06]" : "border-dashed border-border bg-surface-secondary/50")} title={`${signal.name}: ${signal.available ? signal.value : "excluded"}`}>
-                            <div className={clsx("h-full origin-bottom transition-transform", signal.available ? "bg-brand/18" : "bg-transparent")} style={{ transform: `scaleY(${signal.available ? Math.max(0.08, Math.min(1, signal.value / 100)) : 0.08})` }} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {!row.error && <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-text-subtle">{usable.length}/5 channels used · {providerLabel(row.provider)}</p>}
-                  </div>
-                  <p className={clsx("px-2 font-mono text-3xl font-semibold md:px-0", scoreTone(row.score))}>{row.score?.toFixed(0) ?? "—"}</p>
-                  <div className="px-2 md:px-0">{row.recommendation ? <RecommendationBadge recommendation={row.recommendation} /> : <span className="atlas-micro">—</span>}</div>
-                  <div className="px-2 md:px-0"><p className="font-mono text-sm font-semibold text-text">{Math.round((row.coverage || 0) * 100)}%</p><p className="atlas-micro">confidence {Math.round((row.confidence || 0) * 100)}%</p></div>
-                </button>
-              );
-            })}
+          <EvidenceLease packet={packet} />
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[.65fr_.35fr]">
+        <EvidenceDebt recovery={recovery} />
+        <div className="forge-panel p-5 md:p-6">
+          <p className="forge-eyebrow">06 / FRAGILITY</p>
+          <p className="forge-display mt-5 text-5xl font-semibold text-text">{stress?.fragility_class?.replaceAll("_", " ") || "pending"}</p>
+          <p className="mt-5 text-sm leading-6 text-text-secondary">SignalForge stress-tests the current observed evidence by removing channels/providers. It does not invent replacement values or replay history.</p>
+          <div className="mt-6 border-t border-border/70 pt-4">
+            <p className="atlas-micro">current unavailable raw sources</p>
+            <p className="mt-2 font-mono text-[11px] font-semibold text-prism-coral">{unavailable.join(" + ") || "none"}</p>
           </div>
-        </AtlasPanel>
-
-        <div className="space-y-5 xl:col-span-4">
-          <AtlasPanel label="Decision Core" code="FIELD-B" tone={selected?.actionability === "insufficient_evidence" ? "critical" : "live"} meta={selected?.token || "none"}>
-            {selected && !selected.error ? (
-              <>
-                <div className="flex items-start justify-between gap-4">
-                  <div><p className="atlas-micro">selected market</p><p className="mt-2 font-mono text-2xl font-semibold text-text">{selected.token}</p></div>
-                  {selected.recommendation && <RecommendationBadge recommendation={selected.recommendation} />}
-                </div>
-                <div className="my-8 grid grid-cols-[1fr_auto] items-end gap-4 border-y border-border py-6">
-                  <div><p className="atlas-micro">composite</p><p className={clsx("decision-score mt-3 font-mono text-[92px] font-semibold", scoreTone(selected.score))}>{selected.score?.toFixed(0)}</p></div>
-                  <Crosshair className="mb-2 h-10 w-10 text-brand/60" />
-                </div>
-                <ActionabilityGate actionability={selected.actionability} coverage={selected.coverage} confidence={selected.confidence} executionAuthorized={selected.executionAuthorized} />
-              </>
-            ) : (
-              <div className="flex min-h-72 items-center justify-center text-center"><div><Crosshair className="mx-auto h-7 w-7 text-text-subtle" /><p className="mt-4 text-xs text-text-subtle">Select an observed market to open its decision core.</p></div></div>
-            )}
-          </AtlasPanel>
-
-          <AtlasPanel label="Quick Inspect" code="FIELD-C" tone="quiet">
-            <div className="flex gap-2">
-              <input className="input-sm font-mono" value={quickToken} maxLength={12} placeholder="BTC" onChange={(event) => setQuickToken(event.target.value.toUpperCase())} onKeyDown={(event) => event.key === "Enter" && inspectQuick()} />
-              <Button size="sm" onClick={inspectQuick}><ArrowUpRight className="h-4 w-4" /> Inspect</Button>
-            </div>
-          </AtlasPanel>
+          <div className="mt-5 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-prism-coral"><ShieldOff className="h-4 w-4" /> execution_authorized:false</div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-5 xl:grid-cols-12">
-        <div className="xl:col-span-8">
-          <EvidenceRail sources={selected?.sources} coverage={selected?.coverage} />
-        </div>
-        <AtlasPanel label="Field Reading" code="FIELD-D" tone="quiet" className="xl:col-span-4">
-          <div className="flex items-start gap-3"><Layers3 className="mt-0.5 h-5 w-5 text-brand" /><div><p className="text-sm font-semibold text-text">Evidence is allowed to remain incomplete.</p><p className="mt-2 text-xs leading-5 text-text-secondary">The interface treats missing funding or open-interest as excluded evidence, not as a neutral score. Coverage and confidence stay visible beside the conclusion.</p></div></div>
-        </AtlasPanel>
+      <ReceiptStrip packet={packet} recovery={recovery} />
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-5">
+        <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-text-subtle">The next stage after refusal is evidence acquisition — not execution.</p>
+        <a href="/token" className="inline-flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-prism-violet hover:underline">Open full dossier <ArrowRight className="h-4 w-4" /></a>
       </div>
     </div>
   );
