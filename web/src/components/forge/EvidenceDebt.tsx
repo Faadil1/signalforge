@@ -9,7 +9,7 @@ export function EvidenceDebt({ recovery }: { recovery: RecoveryPlan | null }) {
   const confidenceGap = recovery?.evidence_debt.confidence_gap ?? 0;
 
   return (
-    <section className="grid gap-0 overflow-hidden border border-border bg-white/74 lg:grid-cols-[.8fr_1.2fr]">
+    <section className="grid gap-0 overflow-hidden border border-border bg-white/75 lg:grid-cols-[.8fr_1.2fr]">
       <div className="bg-prism-orange/10 p-5 md:p-6 lg:border-r lg:border-border">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2"><Blocks className="h-5 w-5 text-prism-orange" /><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-prism-orange">08 / EVIDENCE DEBT</span></div>
@@ -34,9 +34,9 @@ export function EvidenceDebt({ recovery }: { recovery: RecoveryPlan | null }) {
 
         <div className="mt-6 space-y-3">
           {candidates.length ? candidates.map((candidate) => (
-            <div key={candidate.signal} className="group grid gap-3 border border-prism-magenta/25 bg-white/76 p-4 transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-prism-magenta/60 md:grid-cols-[1fr_auto] md:items-center">
+            <div key={candidate.signal} className="group grid gap-3 border border-prism-magenta/25 bg-white/75 p-4 transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-prism-magenta/60 md:grid-cols-[1fr_auto] md:items-center">
               <div>
-                <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-text">{candidate.signal.replaceAll("_", " ")}</span><span className="chip border-prism-magenta/25 bg-prism-magenta/8 font-mono text-[8px] uppercase tracking-[0.13em] text-prism-magenta">{candidate.safe_action}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-text">{candidate.signal.replaceAll("_", " ")}</span><span className="chip border-prism-magenta/25 bg-prism-magenta/[0.08] font-mono text-[8px] uppercase tracking-[0.13em] text-prism-magenta">{candidate.safe_action}</span></div>
                 <p className="mt-2 font-mono text-[9px] leading-4 text-text-subtle">{(candidate.source_requirements || []).map((item) => `${item.source}: ${item.current_state || "unknown"} → ${item.required_state || "fresh"}`).join(" · ")}</p>
               </div>
               <ArrowRight className="h-5 w-5 text-prism-magenta transition-transform group-hover:translate-x-1" />
