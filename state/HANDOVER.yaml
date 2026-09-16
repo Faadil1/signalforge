@@ -1,28 +1,37 @@
 project: signalforge
-handover_type: trace_ui_v2_prismatic_verified_not_deployed
+handover_type: trace_v2_live_runtime_bound
 branch: trace-ui-v2-maximal
-current_state: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_VERIFIED_NOT_DEPLOYED
-canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_VERIFIED_FOR_VISUAL_REVIEW
+current_state: TRACE_V2_LIVE
+canonical_state: TRACE_V2_LIVE_RUNTIME_BOUND_NAMING_GATE_OPEN
 
 objective: >-
-  Preserve the verified maximal TRACE UI/UX v2 implementation while keeping production unchanged.
-  The product/runtime canon remains upstream opeblow/main at dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad.
+  Preserve the verified live TRACE UI/UX v2 deployment and its exact runtime proof while opening
+  naming/identity work as a separate gate. Do not confuse later documentation commits with the source
+  commit currently serving in Cloudflare production.
 
-production_truth:
+runtime_truth:
   public_origin: https://signalforge.faadil-casecraft.workers.dev
-  deployed_source_sha: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
-  cloudflare_version_id: 3188ea49-349e-4950-9740-059888ae9035
-  winning_intelligence_v3_public_proof_complete: true
+  deployed_source_sha: ada65fe9b2170a910d458f2db9855fe087ca9446
+  cloudflare_version_id: a7d93227-a130-4403-aa37-f992c3bd61ea
+  runtime_evidence_receipt: evidence/runtime/TRACE-V2-LIVE-CLOUDFLARE-2026-09-16.md
+  exact_commit_verified: true
+  trace_v2_public_proof_complete: true
   allow_mock_fallback: false
   execution_authorized: false
+  xagent_slug: signalforge
+
+upstream_truth:
+  repository: opeblow/signalforge
+  upstream_main_sha_at_last_lock: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
+  trace_v2_merged_upstream: false
+  upstream_merge_authorized: false
 
 trace_v2:
   direction: PRISMATIC_EVIDENCE_FOUNDRY
-  verified_design_code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
-  deployed: false
-  merged_upstream: false
-  merge_authorized: false
   headline: "Prove the right to conclude."
+  verified_design_code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+  deployed_source_sha: ada65fe9b2170a910d458f2db9855fe087ca9446
+  deployed: true
   product_flow: >-
     RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> EVIDENCE LEASE -> POLICY GATE ->
     FRAGILITY/SUFFICIENCY -> REFUSAL -> EVIDENCE DEBT -> RECOVERY -> VERIFICATION -> RECEIPT
@@ -68,31 +77,75 @@ trace_v2:
       - Design_System_Checklist
 
 verification:
-  standard_ci:
-    run_number: 109
-    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+  github_compile_verification:
+    workflow: Cloudflare_Runtime_Verify
+    run_number: 164
+    code_head: ada65fe9b2170a910d458f2db9855fe087ca9446
     result: success
-  cloudflare_runtime_verify:
-    run_number: 153
-    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+  github_production_deploy_attempt:
+    workflow: Deploy_Cloudflare_Production
+    run_number: 6
+    code_head: ada65fe9b2170a910d458f2db9855fe087ca9446
+    result: failed_before_deploy_missing_cloudflare_secrets
+  local_authenticated_deploy:
     result: success
+    code_head: ada65fe9b2170a910d458f2db9855fe087ca9446
+    cloudflare_version_id: a7d93227-a130-4403-aa37-f992c3bd61ea
+  public_runtime_assertions:
+    health_status_ok: true
+    health_commit_matches_deployed_source: true
+    xagent_commit_matches_deployed_source: true
+    xagent_slug_signalforge: true
+    decision_execution_authorized_false: true
+    production_data_mode_is_not_mock: true
+    delta_ok: true
+    full_composite_validated_false: true
+    negative_path_passed: true
+    negative_path_execution_authorized_false: true
+    operator_script_result: TRACE_V2_RUNTIME_PROOF_PASS
+
+runtime_snapshot_notes:
+  - decision_snapshot_was_live_partial_not_mock
+  - ticker_and_klines_were_live_via_coinbase_exchange_fallback
+  - funding_and_open_interest_were_unavailable_at_verification_time
+  - unavailable_sources_were_excluded_from_admission
+  - confidence_remained_below_policy_threshold_and_system_abstained
+  - evidence_lease_was_freshness_bounded
+  - numeric_market_values_are_time_bound_and_not_canonical_constants
 
 important_boundaries:
-  - TRACE_v2_is_not_live_production
-  - production_runtime_remains_dea03f9a
+  - production_runtime_is_TRACE_v2_live
+  - deployed_runtime_source_sha_remains_ada65fe9_after_later_documentation_commits
   - no_UI_state_may_invent_missing_evidence
   - recovery_visuals_do_not_guarantee_actionability
   - lease_visuals_do_not_guarantee_forecast_validity
   - receipt_visuals_do_not_claim_signature_or_external_truth
+  - full_composite_predictive_validation_is_not_claimed
+  - profitability_is_not_claimed
   - execution_authorized_false
   - no_upstream_merge_without_explicit_user_authorization
+  - no_slug_api_worker_or_repository_rename_until_naming_migration_is_explicitly_authorized
 
-next_steps:
-  - preview_trace_ui_v2_locally_or_noncanonical_preview
-  - inspect_desktop_mobile_and_reduced_motion
-  - collect_visual_feedback_and_collision_review
-  - iterate_if_needed
-  - prepare_upstream_PR_only_after_user_approval
-  - exact_commit_deploy_only_after_merge_or_explicit_preview_authorization
+next_gate:
+  name: NAMING_GATE
+  status: OPEN
+  working_candidates:
+    - CLEARANCE
+    - THRESHOLD
+    - PROOFLATCH
+    - ADMITLINE
+    - GROUNDCLEAR
+    - RIGHT_TO_ACT
+  required_checks:
+    - collision_search_github_web_domains
+    - semantic_fit_with_evidence_admission_and_right_to_conclude
+    - memorability_and_pronounceability
+    - trademark_and_confusion_risk_screen
+    - domain_and_social_handle_availability_where_material
+    - visual_identity_and_wordmark_fit
+    - migration_cost_for_repository_worker_api_xagent_and_docs
+  rule: >-
+    Naming research may proceed immediately, but SignalForge remains the canonical runtime identifier
+    until a rename candidate passes the gate and migration is explicitly authorized.
 
 submission_ready: false
