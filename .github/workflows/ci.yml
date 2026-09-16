@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, winning-intelligence-v2, winning-intelligence-v3]
+    branches: [main, winning-intelligence-v2, winning-intelligence-v3, trace-ui-v2-maximal]
   pull_request:
     branches: [main]
   workflow_dispatch:
