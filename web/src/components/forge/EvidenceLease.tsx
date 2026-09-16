@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Clock3, TimerReset } from "lucide-react";
 import type { DecisionPacket } from "@/lib/api";
 
@@ -9,7 +10,7 @@ export function EvidenceLease({ packet }: { packet: DecisionPacket | null }) {
   const maxAge = limiting ? packet?.data_quality?.freshness?.[limiting]?.max_age_seconds || 300 : 300;
   const remaining = lease?.remaining_seconds ?? 0;
   const progress = Math.max(0, Math.min(1, maxAge ? remaining / maxAge : 0));
-  const style = { "--lease-progress": progress } as React.CSSProperties;
+  const style = { "--lease-progress": progress } as CSSProperties;
 
   return (
     <section className="spectral-band grid gap-5 p-5 md:grid-cols-[180px_1fr] md:items-center md:p-6">
@@ -23,7 +24,7 @@ export function EvidenceLease({ packet }: { packet: DecisionPacket | null }) {
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="chip border-prism-lime/60 bg-prism-lime/25 font-mono text-[9px] uppercase tracking-[0.14em] text-prism-ink">04 / EVIDENCE LEASE</span>
-          <span className="chip border-border bg-white/65 font-mono text-[9px] uppercase tracking-[0.14em] text-text-secondary">limiter / {limiting || "pending"}</span>
+          <span className="chip border-border bg-white/[0.65] font-mono text-[9px] uppercase tracking-[0.14em] text-text-secondary">limiter / {limiting || "pending"}</span>
         </div>
         <h3 className="mt-4 text-2xl font-semibold tracking-[-0.035em] text-text md:text-3xl">Freshness has an expiry. Confidence does not get to outlive its inputs.</h3>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">The lease is bounded by the earliest contributing raw-source deadline. It is deliberately narrow: freshness only.</p>
