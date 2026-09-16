@@ -11,7 +11,7 @@ from services.decision_service import (
 from services.errors import INVALID_TOKEN, error_token_payload
 from services.evidence_intelligence import verify_decision_receipt
 from services.rate_limit import rate_limit
-from services.recovery_service import get_recovery_plan
+from services.recovery_service import get_recovery_plan, verify_live_recovery
 from services.symbols import is_valid_token, normalize_token
 
 router = APIRouter(tags=["decision"])
@@ -65,6 +65,17 @@ async def decision_recovery_plan(token: str):
     result = await get_recovery_plan(_symbol_or_422(token))
     if not result.get("ok"):
         raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+@router.post("/decision/{token}/verify-recovery", dependencies=[Depends(_decision_rate_limited)])
+async def decision_verify_recovery(token: str, previous_plan: dict):
+    """Compare a prior refusal-recovery plan with the current live evidence-policy state."""
+    result = await verify_live_recovery(_symbol_or_422(token), previous_plan)
+    if not result.get("ok"):
+        code = result.get("error", {}).get("code")
+        caller_errors = {"INVALID_RECOVERY_BASELINE", "INVALID_DECISION_PACKET", "TOKEN_MISMATCH"}
+        raise HTTPException(status_code=422 if code in caller_errors else 502, detail=result)
     return result
 
 
