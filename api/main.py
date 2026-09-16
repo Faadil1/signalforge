@@ -26,7 +26,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="SignalForge",
         description="Pre-action evidence gate for market agents using freshness-gated, multi-provider public market evidence.",
-        version="0.5.0",
+        version="0.6.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -105,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "negative_path": "/api/v1/evidence/negative-path",
             "resilience_benchmark": "/api/v1/evidence/resilience-benchmark",
             "decision_stress": "/api/v1/decision/{token}/stress",
+            "recovery_plan": "/api/v1/decision/{token}/recovery-plan",
             "receipt_verification": "/api/v1/decision/verify-receipt",
         }
 
