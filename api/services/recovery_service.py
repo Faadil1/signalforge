@@ -79,7 +79,10 @@ def _receipt_id(payload: dict[str, Any]) -> str:
 
 def build_recovery_plan(packet: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(packet, dict) or not packet.get("ok"):
-        return {"ok": False, "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid Decision Packet is required."}}
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid Decision Packet is required."},
+        }
 
     available = _available_signals(packet)
     all_signals = list(SIGNAL_POLICY_CONFIDENCE)
@@ -197,11 +200,23 @@ def build_recovery_plan(packet: dict[str, Any]) -> dict[str, Any]:
 
 def verify_recovery_progress(previous_plan: dict[str, Any], current_packet: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(previous_plan, dict) or previous_plan.get("contract") != "refusal_recovery_v1":
-        return {"ok": False, "error": {"code": "INVALID_RECOVERY_BASELINE", "message": "A prior refusal_recovery_v1 plan is required."}}
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_RECOVERY_BASELINE", "message": "A prior refusal_recovery_v1 plan is required."},
+        }
     if not isinstance(current_packet, dict) or not current_packet.get("ok"):
-        return {"ok": False, "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid current Decision Packet is required."}}
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid current Decision Packet is required."},
+        }
     if previous_plan.get("token") != current_packet.get("token"):
-        return {"ok": False, "error": {"code": "TOKEN_MISMATCH", "message": "Recovery baseline token must match the current Decision Packet."}}
+        return {
+            "ok": False,
+            "error": {
+                "code": "TOKEN_MISMATCH",
+                "message": "Recovery baseline token must match the current Decision Packet.",
+            },
+        }
 
     current_plan = build_recovery_plan(current_packet)
     previous_debt = previous_plan.get("evidence_debt") if isinstance(previous_plan.get("evidence_debt"), dict) else {}
@@ -217,8 +232,12 @@ def verify_recovery_progress(previous_plan: dict[str, Any], current_packet: dict
     previous_confidence_gap = float(previous_debt.get("confidence_gap", 0.0) or 0.0)
     current_confidence_gap = float(current_debt.get("confidence_gap", 0.0) or 0.0)
 
-    previous_blockers = {item.get("code") for item in previous_plan.get("blocking_conditions", []) if isinstance(item, dict)}
-    current_blockers = {item.get("code") for item in current_plan.get("blocking_conditions", []) if isinstance(item, dict)}
+    previous_blockers = {
+        item.get("code") for item in previous_plan.get("blocking_conditions", []) if isinstance(item, dict)
+    }
+    current_blockers = {
+        item.get("code") for item in current_plan.get("blocking_conditions", []) if isinstance(item, dict)
+    }
     resolved_blockers = sorted(code for code in previous_blockers - current_blockers if code)
     new_blockers = sorted(code for code in current_blockers - previous_blockers if code)
 
