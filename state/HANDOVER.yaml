@@ -1,201 +1,150 @@
 project: signalforge
-handover_type: winning_intelligence_v3_live_branch_runtime
-branch: winning-intelligence-v3
-current_state: WINNING_INTELLIGENCE_V3_LIVE_BRANCH_SHA
-canonical_state: EVIDENCE_LIFECYCLE_LIVE_BEFORE_UPSTREAM_MERGE
+handover_type: trace_ui_v2_prismatic_candidate
+branch: trace-ui-v2-maximal
+current_state: TRACE_UI_V2_PRISMATIC_EVIDENCE_FOUNDRY_CANDIDATE
+canonical_state: WINNING_INTELLIGENCE_V3_RUNTIME_STABLE_TRACE_V2_IN_REVIEW
 
 objective: >-
-  Preserve the now-live Winning Intelligence v3 runtime while keeping the upstream boundary explicit:
-  production is bound to the fork branch head, PR #3 is still open, and upstream main must be redeployed
-  exactly after merge before it becomes canonical.
+  Preserve the maximal TRACE UI/UX v2 implementation without changing the canonical production runtime.
+  The product/runtime canon remains upstream opeblow/main at dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad;
+  this branch is a design candidate that must be visually reviewed before any merge or deployment.
 
-canonical_story:
-  one_sentence: "SignalForge is a pre-action evidence gate that proves when a market agent should refuse to act."
-  supporting_line: "Evidence before recommendation. Refusal before false confidence. Recovery before retry."
-  differentiation: >-
-    SignalForge makes evidence admission, dependency, freshness, fragility, sufficiency, refusal, recovery,
-    observed repair progress and packet integrity mechanically inspectable before any research handoff.
-
-upstream_state:
-  repository: opeblow/signalforge
-  pr_1: merged
-  pr_2_winning_intelligence_v2: merged
-  pr_3_winning_intelligence_v3: open
-  upstream_main_sha: d61361af581d9c165fe8aecc35d27e67e7b332ad
-  pr_3_head_sha: 5ce08ba7db50b534141219add96fa7a5c92a0f48
-  auto_merge_authorized: false
-
-current_production:
-  origin: https://signalforge.faadil-casecraft.workers.dev
-  deployed_source_sha: 5ce08ba7db50b534141219add96fa7a5c92a0f48
-  cloudflare_version_id: ae32866c-2fb6-4545-b485-6a5a060ddfd3
+production_truth:
+  upstream_repository: opeblow/signalforge
+  upstream_main_sha: dea03f9ae23df2fbb4fa24d75f8998c76eeab1ad
+  public_origin: https://signalforge.faadil-casecraft.workers.dev
+  cloudflare_version_id: 3188ea49-349e-4950-9740-059888ae9035
   exact_commit_verified: true
-  xagent_exact_commit_verified: true
+  winning_intelligence_v3_public_proof_complete: true
   allow_mock_fallback: false
   execution_authorized: false
-  winning_intelligence_v3_live: true
-  deployment_source: fork_branch_head
-  upstream_main_canonical: false
 
-public_runtime_truth:
-  health:
-    status: ok
-    commit: 5ce08ba7db50b534141219add96fa7a5c92a0f48
-    contract_version: "1.1"
-    policy_version: evidence-gate-2026-09
-    mcp_protocol_version: "2026-07-28"
-  capabilities:
-    verified: true
-    mcp_transport_included: true
-    state_model: stateless
-    side_effects: none
-    execution_authority: none
-  decision:
-    verified: true
-    mode: live_partial
-    provider: multi_provider_public
-    ticker: coinbase_exchange
-    klines: coinbase_exchange
-    funding: unavailable
-    open_interest: unavailable
-    coverage: 0.6
-    confidence: 0.36
-    actionability: insufficient_evidence
-    execution_authorized: false
-    admission_ledger: present
-    lineage: present
-    evidence_lease: present
-    recovery_requirements: present
-    receipt: present
-  stress:
-    verified: true
-    fragility_class: already_refusing
-    dominant_provider: coinbase_exchange
-    concentration_level: high
-    execution_authorized: false
-  refusal_recovery:
-    verified: true
-    contract: refusal_recovery_v1
-    status: refused
-    confidence_gap: 0.04
-    unavailable_signals:
-      - funding
-      - open_interest
-    refusal_receipt_present: true
-    recovery_guarantees_actionability: false
-    execution_authorized: false
-  resilience_benchmark:
-    verified: true
-    passed: 4
-    total: 4
-    policy_conformance_rate: 1.0
-    scope: controlled_policy_conformance_not_market_accuracy
-    historical_replay: false
-  mcp:
-    server_discover_verified: true
-    tools_list_verified: false
-    tool_call_verified: false
-  pending_public_proof:
-    - recovery_verification_POST
-    - decision_receipt_verification_POST
-    - MCP_tools_list
-    - MCP_tools_call
+trace_v2:
+  direction: PRISMATIC_EVIDENCE_FOUNDRY
+  design_code_checkpoint: 3f64225425d53e2beef9dae9f28600a4d3789b04
+  deployed: false
+  merged_upstream: false
+  merge_authorized: false
+  core_visual_thesis: >-
+    Turn the evidence lifecycle itself into the primary visual object: sources become colored matter,
+    admission/exclusion is visible, freshness expires, the policy gate can visibly close, evidence debt stacks,
+    recovery draws a repair path, and the lifecycle closes with an inspectable receipt.
+  lifecycle:
+    - raw_source
+    - admission_exclusion
+    - provider_lineage
+    - evidence_lease
+    - policy_gate
+    - fragility_sufficiency
+    - refusal
+    - evidence_debt
+    - recovery_plan
+    - recovery_verification
+    - receipt
+  color_semantics:
+    cobalt_source: "#3257FF"
+    cyan_admission: "#00C9E8"
+    acid_lime_lease: "#C6F432"
+    ultraviolet_gate: "#6E46FF"
+    hot_coral_refusal: "#FF4F73"
+    orange_debt: "#FF8A1F"
+    magenta_recovery: "#E73DFF"
+    ink_receipt: "#171522"
+    porcelain_field: "#EEF3FF"
 
-verified_v3_checkpoint:
-  application_head: b881b71298d3c1547fa61ef09f8ee36a9f33e46a
-  live_branch_head: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+implemented_routes:
+  landing:
+    role: lifecycle_engine_and_product_thesis
+    headline: "Prove the right to conclude."
+  dashboard:
+    role: live_decision_gate
+  token:
+    role: forensic_evidence_dossier
+  judge:
+    role: full_WI_v3_live_proof_chain
+    probe_count: 14
+  playground:
+    role: agent_contract_interface
+  strategies:
+    role: calibration_lab
+
+signature_components:
+  - LifecycleEngine
+  - DecisionGate
+  - EvidenceLease
+  - EvidenceDebt
+  - ReceiptStrip
+
+reference_roles:
+  product_flow:
+    - Mobbin
+    - Pageflows
+    - Femke
+  graphic_system:
+    - Studio_Thonik
+    - Annual_Report_Gallery
+    - Cue_Design
+    - Inspora
+  motion_interaction:
+    - Rare_UI
+    - Transitions_dev
+    - Motion_Primitives
+    - 60FPS_Design
+    - Emil_Kowalski
+  creative_code:
+    - React_Bits
+    - Canvas_UI
+    - Codrops
+    - Aceternity_UI
+  QA:
+    - shadcn_ui
+    - COSS_UI
+    - Component_Gallery
+    - UI_Skills
+    - Design_System_Checklist
+
+motion_rules:
+  semantic_only: true
+  reduced_motion_supported: true
+  refusal_pulse_once_not_looped: true
+  lifecycle_state_transitions: true
+  decorative_animation_as_default: false
+
+anti_lineages:
+  - generic_crypto_dashboard
+  - dark_navy_AI_slop
+  - ivory_paper
+  - glassmorphism_everywhere
+  - generic_bento
+  - cyberpunk_terminal_cosplay
+  - chart_first_market_product
+
+verification:
   standard_ci:
-    number: 97
+    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+    run_number: 109
     result: success
-  cloudflare_verify:
-    number: 142
-    result: success
-  local_cloudflare_deploy:
-    dry_run: success
-    production_deploy: success
-    version_id: ae32866c-2fb6-4545-b485-6a5a060ddfd3
-
-v3_evidence_lifecycle:
-  flow: >-
-    RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> FRESHNESS LEASE -> DERIVED EVIDENCE ->
-    COVERAGE/CONFIDENCE GATE -> FRAGILITY/SUFFICIENCY -> REFUSE/HANDOFF -> EVIDENCE DEBT ->
-    RECOVERY PLAN -> REACQUIRE -> RECOVERY VERIFICATION -> REFUSE AGAIN/HANDOFF -> RECEIPT
-  decision_packet:
-    includes:
-      - evidence_admission_ledger
-      - evidence_lineage
-      - evidence_lease
-      - recovery_requirements
-      - tamper_evident_receipt
-  refusal_recovery:
-    rest: GET_/api/v1/decision/{token}/recovery-plan
-    mcp: plan_evidence_recovery
-    guarantees_actionability: false
-  recovery_verification:
-    rest: POST_/api/v1/decision/{token}/verify-recovery
-    mcp: verify_evidence_recovery
-    guarantees_correct_direction: false
-    execution_authorized: false
-  receipt_integrity:
-    rest: POST_/api/v1/decision/verify-receipt
-    mcp: verify_decision_receipt
-    is_signature: false
-
-mcp_v3:
-  endpoint: POST_/mcp
-  protocol: "2026-07-28"
-  server_version: "0.6.0"
-  stateless: true
-  read_only: true
-  destructive: false
-  tools:
-    - get_decision_packet
-    - compare_decision_packet
-    - stress_test_decision
-    - plan_evidence_recovery
-    - verify_evidence_recovery
-    - verify_decision_receipt
-    - validate_price_signals
-    - inspect_negative_path
-    - run_evidence_resilience_benchmark
+  cloudflare_runtime_verify:
+    code_head: 3f64225425d53e2beef9dae9f28600a4d3789b04
+    run_number: 153
+    result: pending_at_handover_write
 
 important_boundaries:
-  - live_runtime_is_fork_branch_sha_not_upstream_main
-  - PR_3_is_open_and_unmerged
-  - no_auto_merge_upstream
-  - no_wallet_or_execution_authority
-  - no_synthetic_funding_or_open_interest
+  - production_is_not_TRACE_v2
+  - do_not_claim_design_live_before_exact_commit_deploy
+  - do_not_merge_without_explicit_user_authorization
+  - unavailable_evidence_must_remain_visually_unavailable
+  - policy_gate_pass_does_not_equal_execution_authority
   - recovery_does_not_guarantee_actionability
-  - observed_repair_does_not_prove_correct_direction_or_profitability
+  - receipt_is_not_signature_or_external_truth
   - evidence_lease_is_freshness_only
-  - receipt_is_integrity_digest_not_signature
-  - controlled_tests_are_not_historical_replays
-
-next_TRACE_UI_UX_v2:
-  status: ready_after_upstream_merge_and_final_exact_redeploy
-  key_visual_object: Evidence_Lifecycle_and_Refusal_Recovery
-  avoid:
-    - generic_crypto_dashboard
-    - price_cards_as_primary_story
-    - dark_navy_AI_slop
-    - ivory_paper
-    - generic_bento
 
 next_steps:
-  - Opeyemi_reviews_and_merges_PR_3
-  - capture_exact_upstream_main_SHA
-  - redeploy_exact_merged_upstream_main_SHA_to_Cloudflare
-  - verify_health_and_xagent_exact_commit
-  - verify_capabilities_decision_stress_recovery_resilience
-  - verify_recovery_verification_and_receipt_integrity_publicly
-  - verify_MCP_tools_list_and_at_least_one_tool_call
-  - mark_upstream_main_as_canonical_live
-  - then_start_TRACE_UI_UX_v2
+  - confirm_Cloudflare_runtime_verify_green_on_design_code_checkpoint
+  - preview_branch_locally_or_on_noncanonical_preview
+  - perform_desktop_mobile_reduced_motion_and_collision_review
+  - capture_visual_feedback
+  - iterate_if_needed
+  - only_after_user_approval_prepare_upstream_PR
 
 submission_ready: false
-submission_blockers:
-  - PR_3_not_upstream_merged
-  - exact_merged_upstream_main_not_deployed
-  - recovery_verification_and_receipt_public_proofs_not_recorded
-  - MCP_tools_list_and_tool_call_public_proofs_not_recorded
-  - official_X_Agent_submission_package_not_finalized
