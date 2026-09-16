@@ -4,6 +4,14 @@ import hashlib
 import json
 from copy import deepcopy
 
+from services.evidence_audit import build_admission_ledger
+from services.evidence_intelligence import (
+    build_decision_receipt,
+    build_decision_stress_test,
+    build_evidence_lease,
+    build_lineage_analysis,
+    build_recovery_requirements,
+)
 from services.signal_service import get_signal_payload
 
 DECISION_CONTRACT_VERSION = "1.1"
@@ -145,6 +153,8 @@ async def get_decision_packet(token: str) -> dict:
     payload = await get_signal_payload(token)
     if not payload.get("ok"):
         return payload
+
+    source_meta = payload.get("source_meta", {}) if isinstance(payload.get("source_meta"), dict) else {}
     packet = {
         "ok": True,
         "contract_version": DECISION_CONTRACT_VERSION,
@@ -165,17 +175,34 @@ async def get_decision_packet(token: str) -> dict:
         "evidence": _evidence(payload),
         "data_quality": {
             "mode": payload.get("data_mode", "unknown"),
-            "provider": payload.get("source_meta", {}).get("provider", "unknown"),
-            "sources": payload.get("source_meta", {}).get("sources", {}),
-            "observed_at": payload.get("source_meta", {}).get("observed_at"),
+            "provider": source_meta.get("provider", "unknown"),
+            "sources": source_meta.get("sources", {}),
+            "freshness": source_meta.get("freshness", {}),
+            "quality_summary": source_meta.get("quality_summary", {}),
+            "observed_at": source_meta.get("observed_at"),
+            "fallback_active": bool(source_meta.get("fallback_active", False)),
+            "primary_provider": source_meta.get("primary_provider"),
+            "fallback_provider": source_meta.get("fallback_provider"),
         },
+        "evidence_admission_ledger": build_admission_ledger(payload),
+        "evidence_lineage": build_lineage_analysis(payload),
+        "evidence_lease": build_evidence_lease(payload),
+        "recovery_requirements": build_recovery_requirements(payload),
         "invalidation": _invalidation(payload),
         "timestamp": payload["timestamp"],
         "disclaimer": "Research signal only. No execution authority and not financial advice.",
     }
     packet["agent_next_action"] = _agent_next_action(packet)
     packet["snapshot_id"] = _snapshot_id(packet)
+    packet["receipt"] = build_decision_receipt(packet)
     return packet
+
+
+async def get_decision_stress_test(token: str) -> dict:
+    payload = await get_signal_payload(token)
+    if not payload.get("ok"):
+        return payload
+    return build_decision_stress_test(payload)
 
 
 def compare_decision_packets(previous: dict, current: dict, *, persistence: str = "caller_supplied_baseline") -> dict:

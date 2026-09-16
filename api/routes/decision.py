@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from services.decision_service import compare_with_live_decision, get_decision_packet, get_signal_delta
+from services.decision_service import (
+    compare_with_live_decision,
+    get_decision_packet,
+    get_decision_stress_test,
+    get_signal_delta,
+)
 from services.errors import INVALID_TOKEN, error_token_payload
+from services.evidence_intelligence import verify_decision_receipt
 from services.rate_limit import rate_limit
+from services.recovery_service import get_recovery_plan, verify_live_recovery
 from services.symbols import is_valid_token, normalize_token
 
 router = APIRouter(tags=["decision"])
@@ -22,12 +29,54 @@ def _symbol_or_422(token: str) -> str:
     return symbol
 
 
+@router.post("/decision/verify-receipt", dependencies=[Depends(_decision_rate_limited)])
+async def decision_verify_receipt(packet: dict):
+    """Verify a SignalForge Decision Receipt without fetching market data."""
+    result = verify_decision_receipt(packet)
+    if not result.get("ok"):
+        raise HTTPException(status_code=422, detail=result)
+    return result
+
+
 @router.get("/decision/{token}", dependencies=[Depends(_decision_rate_limited)])
 async def decision(token: str):
     packet = await get_decision_packet(_symbol_or_422(token))
     if not packet.get("ok"):
         raise HTTPException(status_code=502, detail=packet)
     return packet
+
+
+@router.get("/decision/{token}/stress", dependencies=[Depends(_decision_rate_limited)])
+async def decision_stress(token: str):
+    """Measure single-channel and provider-dropout fragility without inventing replacement evidence."""
+    result = await get_decision_stress_test(_symbol_or_422(token))
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+@router.get("/decision/{token}/recovery-plan", dependencies=[Depends(_decision_rate_limited)])
+async def decision_recovery_plan(token: str):
+    """Quantify evidence debt and return the safe reacquisition path after a refusal.
+
+    The plan is advisory and read-only. It never predicts that reacquired evidence
+    will make the next decision actionable and never grants execution authority.
+    """
+    result = await get_recovery_plan(_symbol_or_422(token))
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result)
+    return result
+
+
+@router.post("/decision/{token}/verify-recovery", dependencies=[Depends(_decision_rate_limited)])
+async def decision_verify_recovery(token: str, previous_plan: dict):
+    """Compare a prior refusal-recovery plan with the current live evidence-policy state."""
+    result = await verify_live_recovery(_symbol_or_422(token), previous_plan)
+    if not result.get("ok"):
+        code = result.get("error", {}).get("code")
+        caller_errors = {"INVALID_RECOVERY_BASELINE", "INVALID_DECISION_PACKET", "TOKEN_MISMATCH"}
+        raise HTTPException(status_code=422 if code in caller_errors else 502, detail=result)
+    return result
 
 
 @router.get("/decision/{token}/delta", dependencies=[Depends(_decision_rate_limited)])

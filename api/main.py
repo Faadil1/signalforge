@@ -26,7 +26,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="SignalForge",
         description="Pre-action evidence gate for market agents using freshness-gated, multi-provider public market evidence.",
-        version="0.4.0",
+        version="0.6.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -104,6 +104,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "mcp_protocol_version": mcp.MCP_PROTOCOL_VERSION,
             "negative_path": "/api/v1/evidence/negative-path",
             "resilience_benchmark": "/api/v1/evidence/resilience-benchmark",
+            "decision_stress": "/api/v1/decision/{token}/stress",
+            "recovery_plan": "/api/v1/decision/{token}/recovery-plan",
+            "recovery_verification": "/api/v1/decision/{token}/verify-recovery",
+            "receipt_verification": "/api/v1/decision/verify-receipt",
         }
 
     @app.get("/.well-known/xagent-verification.json")

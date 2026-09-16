@@ -1,214 +1,201 @@
 project: signalforge
-handover_type: winning_intelligence_v2_verified_not_deployed
-branch: winning-intelligence-v2
-current_state: WINNING_INTELLIGENCE_V2_VERIFIED_NOT_DEPLOYED
-canonical_state: PRODUCT_DIFFERENTIATION_VERIFIED_BEFORE_UI_V2
+handover_type: winning_intelligence_v3_live_branch_runtime
+branch: winning-intelligence-v3
+current_state: WINNING_INTELLIGENCE_V3_LIVE_BRANCH_SHA
+canonical_state: EVIDENCE_LIFECYCLE_LIVE_BEFORE_UPSTREAM_MERGE
 
 objective: >-
-  Preserve the verified Winning Intelligence v2 product changes and competitive differentiation before
-  opening the next TRACE UI/UX pass. Do not claim branch-only behavior is live until exact-commit deployment proof exists.
+  Preserve the now-live Winning Intelligence v3 runtime while keeping the upstream boundary explicit:
+  production is bound to the fork branch head, PR #3 is still open, and upstream main must be redeployed
+  exactly after merge before it becomes canonical.
+
+canonical_story:
+  one_sentence: "SignalForge is a pre-action evidence gate that proves when a market agent should refuse to act."
+  supporting_line: "Evidence before recommendation. Refusal before false confidence. Recovery before retry."
+  differentiation: >-
+    SignalForge makes evidence admission, dependency, freshness, fragility, sufficiency, refusal, recovery,
+    observed repair progress and packet integrity mechanically inspectable before any research handoff.
 
 upstream_state:
   repository: opeblow/signalforge
   pr_1: merged
-  upstream_main_merge_sha: eecba778ff49dbab58d2b383428972b9f4c5c5e5
-  merged_at_utc: "2026-09-15T16:38:16Z"
-  winning_intelligence_v2_upstream: not_merged
-  branch_synced_with_upstream_main_via: 154c987fbcbce7bdf5a73995af4ffcb8bec93110
+  pr_2_winning_intelligence_v2: merged
+  pr_3_winning_intelligence_v3: open
+  upstream_main_sha: d61361af581d9c165fe8aecc35d27e67e7b332ad
+  pr_3_head_sha: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+  auto_merge_authorized: false
 
 current_production:
   origin: https://signalforge.faadil-casecraft.workers.dev
-  deployed_source_sha: 973ce1530e7a2205366b1115dc9bb4804bae2353
-  cloudflare_version_id: 9ab2f9cf-670b-4c17-b1ed-b8405132ee96
-  placement: remote-FRA
-  trace_seismic_market_atlas_live: true
+  deployed_source_sha: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+  cloudflare_version_id: ae32866c-2fb6-4545-b485-6a5a060ddfd3
   exact_commit_verified: true
+  xagent_exact_commit_verified: true
   allow_mock_fallback: false
   execution_authorized: false
-  winning_intelligence_v2_live: false
+  winning_intelligence_v3_live: true
+  deployment_source: fork_branch_head
+  upstream_main_canonical: false
 
-production_runtime_truth:
+public_runtime_truth:
+  health:
+    status: ok
+    commit: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+    contract_version: "1.1"
+    policy_version: evidence-gate-2026-09
+    mcp_protocol_version: "2026-07-28"
+  capabilities:
+    verified: true
+    mcp_transport_included: true
+    state_model: stateless
+    side_effects: none
+    execution_authority: none
   decision:
+    verified: true
     mode: live_partial
     provider: multi_provider_public
     ticker: coinbase_exchange
     klines: coinbase_exchange
     funding: unavailable
     open_interest: unavailable
+    coverage: 0.6
+    confidence: 0.36
+    actionability: insufficient_evidence
     execution_authorized: false
-  validation:
-    validation_scope: price_derived_3_of_5
-    full_composite_validated: false
-    data_provider: multi_provider_public
-    kline_source: coinbase_exchange
-  negative_path:
-    passed: true
-    not_a_historical_replay: true
+    admission_ledger: present
+    lineage: present
+    evidence_lease: present
+    recovery_requirements: present
+    receipt: present
+  stress:
+    verified: true
+    fragility_class: already_refusing
+    dominant_provider: coinbase_exchange
+    concentration_level: high
     execution_authorized: false
-
-winning_intelligence_v2_checkpoint:
-  application_checkpoint_sha: 42def27390a468b4820830faf58ca2eed210662e
-  evidence_bound_readme_head: a6d6e21dfd66c59ef51e303851b9da3f910ba8fe
-  verified: true
-  deployed: false
-  ci:
-    standard_ci_run: 55
-    standard_ci_run_id: 35002737909
-    standard_ci_result: success
-    cloudflare_verify_run: 99
-    cloudflare_verify_run_id: 35002737940
-    cloudflare_verify_result: success
-  scorecard_targeting:
-    real_agent_user_value_30: narrow_pre_action_evidence_gate
-    capability_quality_25: refusal_behavior_resilience_benchmark_errors_limits
-    engineering_20: stateless_compare_tests_exact_commit_deploy_model
-    mcp_productization_15: real_stateless_MCP_tool_contracts_authority_errors
-    adoption_operating_10: operations_runbook_versioning_rollback_incident_response
-
-implemented_hidden_spots:
-  - id: durable_delta
-    before: process_local_delta_only
-    after:
-      rest: POST_/api/v1/decision/{token}/compare
-      mcp: compare_decision_packet
-      persistence: caller_supplied_baseline
-      legacy_unversioned_baseline_supported: true
-      incompatible_contract_version_rejected: true
-      malformed_baseline_returns_structured_error: true
-    retained_convenience_endpoint: GET_/api/v1/decision/{token}/delta
-    retained_limit: process_memory_non_durable
-  - id: measurable_refusal_quality
-    before: one_negative_path_fixture
-    after:
-      rest: GET_/api/v1/evidence/resilience-benchmark
-      mcp: run_evidence_resilience_benchmark
-      scenarios: 4
-      fixture_epoch: "2026-09-15T00:00:00+00:00"
-      repeated_output_equality_tested: true
-      scope: deterministic_policy_conformance_not_market_accuracy
-      historical_replay: false
-  - id: explicit_agent_contract
-    decision_contract_version: "1.1"
-    policy_version: evidence-gate-2026-09
-    agent_next_actions:
-      - REFRESH_EVIDENCE
-      - OBSERVE_ONLY
-      - RESEARCH_HANDOFF
-    authority: research_only
+  refusal_recovery:
+    verified: true
+    contract: refusal_recovery_v1
+    status: refused
+    confidence_gap: 0.04
+    unavailable_signals:
+      - funding
+      - open_interest
+    refusal_receipt_present: true
+    recovery_guarantees_actionability: false
     execution_authorized: false
-  - id: real_MCP
-    endpoint: POST_/mcp
-    protocol: "2026-07-28"
-    state: stateless
-    methods:
-      - server/discover
-      - tools/list
-      - tools/call
-    tools:
-      - get_decision_packet
-      - compare_decision_packet
-      - validate_price_signals
-      - inspect_negative_path
-      - run_evidence_resilience_benchmark
-    read_only: true
-    destructive: false
-    origin_validation: true
-    official_spec_alignment_checked: true
-  - id: capabilities_manifest
-    endpoint: GET_/api/v1/capabilities
-  - id: operability
-    runbook: docs/OPERATIONS.md
-  - id: competitive_intelligence
-    document: docs/WINNING-INTELLIGENCE-V2.md
-  - id: agent_integration
-    document: docs/AGENT-INTEGRATION.md
-  - id: claim_discipline
-    readme: >-
-      MCP/stateless-compare/resilience are documented as branch capabilities and are not claimed publicly live
-      until an exact source commit containing them is deployed and verified.
+  resilience_benchmark:
+    verified: true
+    passed: 4
+    total: 4
+    policy_conformance_rate: 1.0
+    scope: controlled_policy_conformance_not_market_accuracy
+    historical_replay: false
+  mcp:
+    server_discover_verified: true
+    tools_list_verified: false
+    tool_call_verified: false
+  pending_public_proof:
+    - recovery_verification_POST
+    - decision_receipt_verification_POST
+    - MCP_tools_list
+    - MCP_tools_call
 
-competitive_intelligence:
-  closest_project: BHRIGU_OlaXBT_Strategy_Evidence_Agent_PR_55
-  distinction: >-
-    BHRIGU evaluates evidence around an external strategy/signal authority. SignalForge owns a bounded evidence-fusion
-    gate and makes provider degradation, evidence removal, confidence loss and refusal independently testable.
-  mechanisms_learned_without_copying_products:
-    Contract_Guard: judge_runnable_deterministic_benchmark
-    YAI_Agent_Core: explicit_state_and_MCP_productization
-    Finfold: operational_evidence_and_claim_to_evidence_discipline
-    SchemaBridge: narrow_job_structured_errors_and_limits
-    SafeGate: authority_boundary
-    BountyProof: conservative_preflight_pattern
-  field_saturation:
-    - generic_scores
-    - buy_sell_hold
-    - live_market_dashboards
-    - generic_chat
-    - generic_AI_agent
-    - tool_count_race
-    - basic_MCP_wrapper
-    - backtest_as_primary_proof
-  unique_bundle:
-    - real_provider_failure_observed
-    - transparent_multi_provider_partial_recovery
-    - unavailable_derivatives_channels_not_synthesized
-    - machine_readable_refusal
-    - deterministic_resilience_conformance
-    - stateless_material_change_compare
-    - real_read_only_MCP
-    - exact_commit_runtime_identity
+verified_v3_checkpoint:
+  application_head: b881b71298d3c1547fa61ef09f8ee36a9f33e46a
+  live_branch_head: 5ce08ba7db50b534141219add96fa7a5c92a0f48
+  standard_ci:
+    number: 97
+    result: success
+  cloudflare_verify:
+    number: 142
+    result: success
+  local_cloudflare_deploy:
+    dry_run: success
+    production_deploy: success
+    version_id: ae32866c-2fb6-4545-b485-6a5a060ddfd3
 
-canonical_story:
-  one_sentence: "SignalForge is a pre-action evidence gate that proves when a market agent should refuse to act."
-  supporting_line: "Evidence before recommendation. Refusal before false confidence."
-  product_flow: >-
-    acquire evidence -> classify quality -> remove degraded evidence -> recompute coverage/confidence ->
-    produce bounded Decision Packet or machine-readable refusal -> require external authority for execution
+v3_evidence_lifecycle:
+  flow: >-
+    RAW SOURCE -> ADMISSION/EXCLUSION -> LINEAGE -> FRESHNESS LEASE -> DERIVED EVIDENCE ->
+    COVERAGE/CONFIDENCE GATE -> FRAGILITY/SUFFICIENCY -> REFUSE/HANDOFF -> EVIDENCE DEBT ->
+    RECOVERY PLAN -> REACQUIRE -> RECOVERY VERIFICATION -> REFUSE AGAIN/HANDOFF -> RECEIPT
+  decision_packet:
+    includes:
+      - evidence_admission_ledger
+      - evidence_lineage
+      - evidence_lease
+      - recovery_requirements
+      - tamper_evident_receipt
+  refusal_recovery:
+    rest: GET_/api/v1/decision/{token}/recovery-plan
+    mcp: plan_evidence_recovery
+    guarantees_actionability: false
+  recovery_verification:
+    rest: POST_/api/v1/decision/{token}/verify-recovery
+    mcp: verify_evidence_recovery
+    guarantees_correct_direction: false
+    execution_authorized: false
+  receipt_integrity:
+    rest: POST_/api/v1/decision/verify-receipt
+    mcp: verify_decision_receipt
+    is_signature: false
 
-next_TRACE_UI_UX_direction:
-  status: blocked_until_product_branch_upstream_and_runtime_verified
-  key_visual_object: Evidence_Gate_Refusal_Transition
-  must_show:
-    - evidence_arrival
-    - source_provenance
-    - quality_challenge
-    - source_exclusion
-    - coverage_confidence_change
-    - refusal_or_research_handoff
-    - authority_boundary
-    - resilience_benchmark
-    - MCP_agent_surface
-  must_not_regress_to:
+mcp_v3:
+  endpoint: POST_/mcp
+  protocol: "2026-07-28"
+  server_version: "0.6.0"
+  stateless: true
+  read_only: true
+  destructive: false
+  tools:
+    - get_decision_packet
+    - compare_decision_packet
+    - stress_test_decision
+    - plan_evidence_recovery
+    - verify_evidence_recovery
+    - verify_decision_receipt
+    - validate_price_signals
+    - inspect_negative_path
+    - run_evidence_resilience_benchmark
+
+important_boundaries:
+  - live_runtime_is_fork_branch_sha_not_upstream_main
+  - PR_3_is_open_and_unmerged
+  - no_auto_merge_upstream
+  - no_wallet_or_execution_authority
+  - no_synthetic_funding_or_open_interest
+  - recovery_does_not_guarantee_actionability
+  - observed_repair_does_not_prove_correct_direction_or_profitability
+  - evidence_lease_is_freshness_only
+  - receipt_is_integrity_digest_not_signature
+  - controlled_tests_are_not_historical_replays
+
+next_TRACE_UI_UX_v2:
+  status: ready_after_upstream_merge_and_final_exact_redeploy
+  key_visual_object: Evidence_Lifecycle_and_Refusal_Recovery
+  avoid:
     - generic_crypto_dashboard
     - price_cards_as_primary_story
-    - chart_density_as_ambition
     - dark_navy_AI_slop
     - ivory_paper
     - generic_bento
 
 next_steps:
-  - compare_final_branch_against_opeblow_main
-  - prepare_upstream_PR_for_Opeyemi_without_auto_merge
-  - after_Opeyemi_merge_capture_exact_upstream_main_SHA
-  - deploy_exact_merged_SHA_to_Cloudflare
-  - rerun_core_six_public_proof_calls
-  - verify_public_capabilities_endpoint
-  - verify_public_resilience_benchmark
-  - verify_public_MCP_server_discover_tools_list_and_at_least_one_tool_call
+  - Opeyemi_reviews_and_merges_PR_3
+  - capture_exact_upstream_main_SHA
+  - redeploy_exact_merged_upstream_main_SHA_to_Cloudflare
+  - verify_health_and_xagent_exact_commit
+  - verify_capabilities_decision_stress_recovery_resilience
+  - verify_recovery_verification_and_receipt_integrity_publicly
+  - verify_MCP_tools_list_and_at_least_one_tool_call
+  - mark_upstream_main_as_canonical_live
   - then_start_TRACE_UI_UX_v2
-
-important_boundaries:
-  - do_not_claim_MCP_live_before_exact_deploy
-  - do_not_claim_resilience_benchmark_live_before_exact_deploy
-  - do_not_merge_upstream_without_Opeyemi_or_explicit_user_authorization
-  - do_not_add_execution_or_wallet_authority
-  - do_not_call_controlled_fixtures_historical_replays
-  - do_not_claim_full_five_channel_historical_validation
-  - do_not_relabel_Coinbase_evidence_as_Binance
 
 submission_ready: false
 submission_blockers:
-  - winning_intelligence_v2_not_upstream_merged
-  - exact_merged_main_not_deployed
-  - new_public_MCP_and_resilience_proofs_not_recorded
+  - PR_3_not_upstream_merged
+  - exact_merged_upstream_main_not_deployed
+  - recovery_verification_and_receipt_public_proofs_not_recorded
+  - MCP_tools_list_and_tool_call_public_proofs_not_recorded
   - official_X_Agent_submission_package_not_finalized

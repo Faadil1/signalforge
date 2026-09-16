@@ -79,7 +79,10 @@ def _receipt_id(payload: dict[str, Any]) -> str:
 
 def build_recovery_plan(packet: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(packet, dict) or not packet.get("ok"):
-        return {"ok": False, "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid Decision Packet is required."}}
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid Decision Packet is required."},
+        }
 
     available = _available_signals(packet)
     all_signals = list(SIGNAL_POLICY_CONFIDENCE)
@@ -195,8 +198,113 @@ def build_recovery_plan(packet: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def verify_recovery_progress(previous_plan: dict[str, Any], current_packet: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(previous_plan, dict) or previous_plan.get("contract") != "refusal_recovery_v1":
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_RECOVERY_BASELINE", "message": "A prior refusal_recovery_v1 plan is required."},
+        }
+    if not isinstance(current_packet, dict) or not current_packet.get("ok"):
+        return {
+            "ok": False,
+            "error": {"code": "INVALID_DECISION_PACKET", "message": "A valid current Decision Packet is required."},
+        }
+    if previous_plan.get("token") != current_packet.get("token"):
+        return {
+            "ok": False,
+            "error": {
+                "code": "TOKEN_MISMATCH",
+                "message": "Recovery baseline token must match the current Decision Packet.",
+            },
+        }
+
+    current_plan = build_recovery_plan(current_packet)
+    previous_debt = previous_plan.get("evidence_debt") if isinstance(previous_plan.get("evidence_debt"), dict) else {}
+    current_debt = current_plan.get("evidence_debt") if isinstance(current_plan.get("evidence_debt"), dict) else {}
+
+    previous_unavailable = set(previous_debt.get("unavailable_signals") or [])
+    current_unavailable = set(current_debt.get("unavailable_signals") or [])
+    recovered_signals = sorted(previous_unavailable - current_unavailable)
+    newly_unavailable = sorted(current_unavailable - previous_unavailable)
+
+    previous_coverage_gap = float(previous_debt.get("coverage_gap", 0.0) or 0.0)
+    current_coverage_gap = float(current_debt.get("coverage_gap", 0.0) or 0.0)
+    previous_confidence_gap = float(previous_debt.get("confidence_gap", 0.0) or 0.0)
+    current_confidence_gap = float(current_debt.get("confidence_gap", 0.0) or 0.0)
+
+    previous_blockers = {
+        item.get("code") for item in previous_plan.get("blocking_conditions", []) if isinstance(item, dict)
+    }
+    current_blockers = {
+        item.get("code") for item in current_plan.get("blocking_conditions", []) if isinstance(item, dict)
+    }
+    resolved_blockers = sorted(code for code in previous_blockers - current_blockers if code)
+    new_blockers = sorted(code for code in current_blockers - previous_blockers if code)
+
+    debt_reduced = (
+        current_coverage_gap < previous_coverage_gap
+        or current_confidence_gap < previous_confidence_gap
+        or len(current_unavailable) < len(previous_unavailable)
+    )
+    debt_increased = (
+        current_coverage_gap > previous_coverage_gap
+        or current_confidence_gap > previous_confidence_gap
+        or len(current_unavailable) > len(previous_unavailable)
+    )
+    policy_gate_passed = current_packet.get("actionability") != "insufficient_evidence"
+
+    if policy_gate_passed:
+        status = "policy_gate_recovered"
+    elif debt_reduced and not debt_increased:
+        status = "improved_but_still_refused"
+    elif debt_increased:
+        status = "degraded_since_refusal"
+    else:
+        status = "unchanged_refusal"
+
+    return {
+        "ok": True,
+        "contract": "recovery_verification_v1",
+        "token": current_packet.get("token"),
+        "prior_refusal_receipt_id": previous_plan.get("refusal_receipt_id"),
+        "current_refusal_receipt_id": current_plan.get("refusal_receipt_id"),
+        "prior_decision_snapshot_id": previous_plan.get("decision_snapshot_id"),
+        "current_decision_snapshot_id": current_packet.get("snapshot_id"),
+        "status": status,
+        "evidence_repair_observed": bool(debt_reduced or resolved_blockers or recovered_signals),
+        "policy_gate_passed": policy_gate_passed,
+        "execution_authorized": False,
+        "delta": {
+            "coverage_gap": round(current_coverage_gap - previous_coverage_gap, 3),
+            "confidence_gap": round(current_confidence_gap - previous_confidence_gap, 3),
+            "recovered_signals": recovered_signals,
+            "newly_unavailable_signals": newly_unavailable,
+            "resolved_blockers": resolved_blockers,
+            "new_blockers": new_blockers,
+        },
+        "current_actionability": current_packet.get("actionability"),
+        "next_safe_action": (
+            "RESEARCH_HANDOFF_REQUIRES_EXTERNAL_AUTHORITY"
+            if policy_gate_passed
+            else current_plan.get("next_safe_action")
+        ),
+        "non_guarantees": [
+            "Evidence repair does not imply a profitable or correct market direction.",
+            "A passed policy gate does not grant execution authority.",
+            "Recovery verification compares observed evidence-policy state only; it is not a historical replay or causal proof.",
+        ],
+    }
+
+
 async def get_recovery_plan(token: str) -> dict[str, Any]:
     packet = await get_decision_packet(token)
     if not packet.get("ok"):
         return packet
     return build_recovery_plan(packet)
+
+
+async def verify_live_recovery(token: str, previous_plan: dict[str, Any]) -> dict[str, Any]:
+    packet = await get_decision_packet(token)
+    if not packet.get("ok"):
+        return packet
+    return verify_recovery_progress(previous_plan, packet)
