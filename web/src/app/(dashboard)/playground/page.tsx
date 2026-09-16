@@ -2,12 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { clsx } from "clsx";
-import { RefreshCw, Send, Terminal, CheckCircle2 } from "lucide-react";
+import { Braces, CheckCircle2, RefreshCw, Send, ShieldOff, Terminal, Wrench } from "lucide-react";
 import { safeJson } from "@/lib/api";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 
 type Endpoint = { method: "GET" | "POST" | "DELETE"; path: string; description: string };
 type Usage = {
@@ -17,12 +14,6 @@ type Usage = {
   uptime_s: number;
   top_endpoints: { path: string; count: number }[];
 };
-
-const METHOD_TONE = {
-  GET: "positive",
-  POST: "info",
-  DELETE: "negative",
-} as const;
 
 export default function PlaygroundPage() {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
@@ -38,26 +29,21 @@ export default function PlaygroundPage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [epRes, usageRes] = await Promise.all([
+      const [endpointRes, usageRes] = await Promise.all([
         fetch("/api/v1/playground/endpoints"),
         fetch("/api/v1/playground/usage"),
       ]);
-      if (!epRes.ok || !usageRes.ok) throw new Error("Failed to load playground data");
-      const ep = await safeJson<{ endpoints: Endpoint[] }>(epRes, { endpoints: [] });
-      const us = await safeJson<Usage>(usageRes, {
-        total_calls: 0, calls_today: 0, avg_latency_ms: 0, uptime_s: 0, top_endpoints: [],
-      });
-      setEndpoints(ep.endpoints || []);
-      setUsage(us);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      if (!endpointRes.ok || !usageRes.ok) throw new Error("Agent contract metadata unavailable");
+      const endpointData = await safeJson<{ endpoints: Endpoint[] }>(endpointRes, { endpoints: [] });
+      const usageData = await safeJson<Usage>(usageRes, { total_calls: 0, calls_today: 0, avg_latency_ms: 0, uptime_s: 0, top_endpoints: [] });
+      setEndpoints(endpointData.endpoints || []);
+      setUsage(usageData);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to load agent contract");
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  useEffect(() => { void load(); }, [load]);
   const endpoint = endpoints[selected];
 
   const handleSend = async () => {
@@ -70,161 +56,96 @@ export default function PlaygroundPage() {
         .replace("{token}", tokenInput.toUpperCase())
         .replace("{id}", "momentum")
         .replace("{alert_id}", "__placeholder__");
-      const res = await fetch(`${path}`, {
+      const res = await fetch(path, {
         method: endpoint.method,
         headers: endpoint.method === "POST" ? { "Content-Type": "application/json" } : undefined,
-        body:
-          endpoint.method === "POST"
-            ? JSON.stringify({ token: tokenInput.toUpperCase(), condition: "gte", threshold: 50 })
-            : undefined,
+        body: endpoint.method === "POST" ? JSON.stringify({ token: tokenInput.toUpperCase(), condition: "gte", threshold: 50 }) : undefined,
       });
-      const elapsed = Math.round(performance.now() - startedAt);
       setStatus(res.status);
-      setLatency(elapsed);
-      const text = await res.text();
-      setResponse(res.ok ? text : text || res.statusText);
-      if (res.status === 401) {
-        setResponse(JSON.stringify({ error: "Auth required — this endpoint needs an API key to reach its live data source." }, null, 2));
-      }
-    } catch (e) {
+      setLatency(Math.round(performance.now() - startedAt));
+      setResponse((await res.text()) || res.statusText);
+    } catch (cause) {
       setStatus(0);
       setLatency(Math.round(performance.now() - startedAt));
-      setResponse(JSON.stringify({ error: e instanceof Error ? e.message : "Request failed" }, null, 2));
+      setResponse(JSON.stringify({ error: cause instanceof Error ? cause.message : "Request failed" }, null, 2));
     } finally {
       setLoading(false);
     }
   };
 
-  const uptimeHours = usage ? Math.round(usage.uptime_s / 3600) : 0;
-
-  const STATS = usage
+  const stats = usage
     ? [
-        { label: "Calls Total", value: usage.total_calls.toLocaleString(), sub: "since start" },
-        { label: "Calls Today", value: usage.calls_today.toLocaleString(), sub: "24h" },
-        { label: "Avg Latency", value: `${Math.round(usage.avg_latency_ms)}ms`, sub: "last 24h" },
-        { label: "Uptime", value: `${uptimeHours}h`, sub: "process" },
+        ["process calls", usage.total_calls.toLocaleString(), "current isolate", "#3257FF"],
+        ["calls today", usage.calls_today.toLocaleString(), "process-local", "#00C9E8"],
+        ["mean latency", `${Math.round(usage.avg_latency_ms)}ms`, "local sample", "#C6F432"],
+        ["authority", "NONE", "read-only research", "#FF4F73"],
       ]
-    : [0, 1, 2, 3].map((i) => ({ label: "—", value: "·", sub: "…" }));
+    : [["loading", "—", "awaiting isolate", "#B9C6F2"]];
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Agent API"
-        subtitle="Interactive live tester for SignalForge endpoints"
-        badge={<Badge tone="info"><Terminal className="h-3.5 w-3.5" /> Playground</Badge>}
-        actions={
-          <Button size="md" variant="secondary" onClick={load}><RefreshCw className="h-4 w-4" /> Refresh</Button>
-        }
-      />
+    <div className="space-y-7">
+      <header className="grid gap-6 border-b border-border/70 pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <p className="forge-eyebrow">09 / AGENT CONTRACT</p>
+          <h1 className="forge-display mt-5 text-5xl font-semibold text-text md:text-7xl">Call the evidence machine directly.</h1>
+          <p className="mt-5 max-w-3xl text-sm leading-6 text-text-secondary">A live request surface for the same read-only contracts used by the interface. Raw responses remain visible so provenance, refusal and authority boundaries cannot be hidden by presentation.</p>
+        </div>
+        <Button variant="secondary" onClick={() => void load()}><RefreshCw className="h-4 w-4" /> Refresh contract</Button>
+      </header>
 
-      {error && (
-        <Card className="p-4 text-sm text-negative font-mono">
-          {error} — <button onClick={load} className="underline text-brand">retry</button>
-        </Card>
-      )}
+      {error && <div className="border border-prism-coral/40 bg-prism-coral/10 px-4 py-3 font-mono text-[10px] text-prism-coral">CONTRACT ERROR / {error}</div>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {STATS.map((s) => (
-          <Card key={s.label + s.value} className="p-4">
-            <p className="text-[11px] uppercase tracking-wider text-text-subtle">{s.label}</p>
-            <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-text">{s.value}</p>
-            <p className="mt-0.5 text-[11px] text-text-subtle">{s.sub}</p>
-          </Card>
+      <section className="grid gap-px overflow-hidden border border-border bg-border md:grid-cols-4">
+        {stats.map(([label, value, sub, color]) => (
+          <div key={label} className="relative bg-white/80 p-4">
+            <span className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
+            <p className="font-mono text-[8px] uppercase tracking-[0.17em] text-text-subtle">{label}</p>
+            <p className="mt-2 font-mono text-2xl font-semibold text-text">{value}</p>
+            <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.12em] text-text-subtle">{sub}</p>
+          </div>
         ))}
-      </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader><CardTitle>Request Builder</CardTitle></CardHeader>
-          <div className="max-h-52 overflow-y-auto border-b border-border px-2 py-2">
-            {endpoints.map((ep, i) => (
-              <div
-                key={i}
-                onClick={() => setSelected(i)}
+      <section className="grid gap-6 xl:grid-cols-[.34fr_.66fr]">
+        <div className="forge-panel overflow-hidden">
+          <div className="border-b border-border/70 bg-white/60 px-5 py-4">
+            <div className="flex items-center gap-2"><Braces className="h-5 w-5 text-prism-magenta" /><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-prism-magenta">CONTRACT INDEX</span></div>
+            <p className="mt-2 text-xs text-text-secondary">{endpoints.length} public REST surfaces exposed by this runtime.</p>
+          </div>
+          <div className="max-h-[620px] overflow-y-auto divide-y divide-border/70">
+            {endpoints.map((item, index) => (
+              <button
+                key={`${item.method}-${item.path}`}
+                type="button"
+                onClick={() => setSelected(index)}
                 className={clsx(
-                  "flex cursor-pointer items-start gap-3 rounded-md px-3 py-2 text-[13px] transition-colors",
-                  selected === i ? "bg-surface-secondary ring-1 ring-inset ring-border" : "hover:bg-surface-secondary/60"
+                  "grid w-full grid-cols-[58px_1fr] gap-3 px-5 py-4 text-left transition-[background-color,box-shadow]",
+                  selected === index ? "bg-prism-magenta/[0.08] shadow-[inset_5px_0_0_#E73DFF]" : "bg-white/30 hover:bg-white/70"
                 )}
               >
-                <Badge tone={METHOD_TONE[ep.method]} className="font-mono w-14 justify-center">{ep.method}</Badge>
-                <div className="min-w-0">
-                  <span className="block truncate font-mono text-text">{ep.path}</span>
-                  <span className="block text-[11px] text-text-subtle">{ep.description}</span>
-                </div>
-              </div>
+                <span className={clsx("font-mono text-[9px] font-semibold", item.method === "GET" ? "text-prism-cobalt" : item.method === "POST" ? "text-prism-magenta" : "text-prism-coral")}>{item.method}</span>
+                <div><p className="break-all font-mono text-[10px] font-semibold text-text">{item.path}</p><p className="mt-1 text-[10px] leading-4 text-text-subtle">{item.description}</p></div>
+              </button>
             ))}
-            {!endpoints.length && (
-              <div className="p-4 text-center text-xs text-text-subtle animate-pulse">Loading endpoints…</div>
-            )}
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[.36fr_.64fr]">
+          <div className="forge-panel p-5 md:p-6">
+            <div className="flex items-center gap-2"><Wrench className="h-5 w-5 text-prism-violet" /><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-prism-violet">REQUEST CONSTRUCTOR</span></div>
+            <div className="mt-6"><label className="atlas-micro">token input</label><input className="input mt-2 font-mono" value={tokenInput} onChange={(event) => setTokenInput(event.target.value.toUpperCase())} /></div>
+            <div className="mt-5"><p className="atlas-micro">selected request</p><div className="mt-2 border border-border bg-white/70 p-4 font-mono text-[10px] leading-5 text-text-secondary">{endpoint ? `${endpoint.method} ${endpoint.path}` : "—"}</div></div>
+            <Button className="mt-5 w-full" onClick={() => void handleSend()} disabled={!endpoint || loading} loading={loading}>{!loading && <Send className="h-4 w-4" />} Send live request</Button>
+            <div className="mt-6 border-t border-border/70 pt-4"><div className="flex items-start gap-2 text-prism-coral"><ShieldOff className="mt-0.5 h-4 w-4 shrink-0" /><p className="font-mono text-[8px] uppercase leading-4 tracking-[0.13em]">No request on this surface grants execution authority.</p></div></div>
           </div>
 
-          <CardBody className="space-y-3">
-            <div>
-              <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Token</label>
-              <input
-                type="text"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-                className="input font-mono"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] uppercase tracking-wider text-text-subtle">Request</label>
-              <div className="rounded-md bg-surface-secondary p-3 font-mono text-xs text-text-secondary ring-1 ring-inset ring-border">
-                <div>{endpoint ? `${endpoint.method} ${endpoint.path}` : "—"}</div>
-                <div className="text-text-subtle">Content-Type: application/json</div>
-              </div>
-            </div>
-            <Button onClick={handleSend} disabled={loading || !endpoint} loading={loading} className="w-full">
-              {!loading && <Send className="h-4 w-4" />} {loading ? "Sending…" : "Send Request"}
-            </Button>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Response</CardTitle>
-            <div className="flex items-center gap-3 text-xs">
-              {status != null && (
-                <span
-                  className={clsx(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono font-medium",
-                    status >= 200 && status < 300 ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"
-                  )}
-                >
-                  {status >= 200 && status < 300 && <CheckCircle2 className="h-3 w-3" />}
-                  {status}
-                </span>
-              )}
-              {latency != null && <span className="font-mono text-text-subtle">{latency}ms</span>}
-            </div>
-          </CardHeader>
-          <CardBody>
-            {response ? (
-              <pre className="max-h-[24rem] overflow-auto whitespace-pre-wrap break-all rounded-md bg-surface-secondary p-4 font-mono text-[13px] text-text-secondary ring-1 ring-inset ring-border">
-                {response}
-              </pre>
-            ) : (
-              <div className="flex h-40 items-center justify-center rounded-md bg-surface-secondary text-xs text-text-subtle ring-1 ring-inset ring-border">
-                {loading ? "Fetching live response…" : "Select an endpoint and send a request"}
-              </div>
-            )}
-          </CardBody>
-          {usage && usage.top_endpoints.length > 0 && (
-            <div className="border-t border-border p-4">
-              <p className="mb-2 text-[11px] uppercase tracking-wider text-text-subtle">Top Endpoints by Calls</p>
-              <div className="space-y-1.5">
-                {usage.top_endpoints.slice(0, 4).map((te) => (
-                  <div key={te.path} className="flex items-center justify-between text-xs">
-                    <span className="truncate font-mono text-text-secondary">{te.path}</span>
-                    <span className="font-mono tabular-nums text-brand">{te.count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-      </div>
+          <div className="receipt-strip min-h-[440px] p-5 md:p-6">
+            <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Terminal className="h-5 w-5 text-prism-lime" /><span className="font-mono text-[9px] font-semibold uppercase tracking-[0.17em] text-prism-lime">RAW RESPONSE BUFFER</span></div><span className="font-mono text-[8px] uppercase tracking-[0.13em] text-[#827c9b]">{status == null ? "idle" : `HTTP ${status} · ${latency ?? 0}ms`}</span></div>
+            {response ? <pre className="mt-5 max-h-[540px] overflow-auto whitespace-pre-wrap break-all border-t border-white/10 pt-5 font-mono text-[10px] leading-5 text-[#e7e3f3]">{response}</pre> : <div className="flex min-h-[340px] items-center justify-center text-center"><div><Terminal className="mx-auto h-8 w-8 text-[#827c9b]" /><p className="mt-4 font-mono text-[9px] uppercase tracking-[0.14em] text-[#827c9b]">select a contract and send a live request</p></div></div>}
+            {status != null && <div className="mt-4 flex items-center gap-2 border-t border-white/10 pt-4 font-mono text-[9px] text-[#aaa5c2]">{status >= 200 && status < 300 && <CheckCircle2 className="h-4 w-4 text-prism-lime" />}HTTP {status} · {latency}ms</div>}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
