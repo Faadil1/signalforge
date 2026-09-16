@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "aws-tokyo-binance-2025-04-15",
+  "event_date": "2025-04-15",
+  "title": "AWS Tokyo connectivity incident affecting Binance services",
+  "principle": "Real failure > fake success",
+  "positive_signal": "Agents that consume market evidence need an explicit way to distinguish healthy, degraded, stale, unavailable and simulated evidence before a recommendation can be treated as actionable.",
+  "observed": [
+    {
+      "fact": "A connectivity issue in an AWS Tokyo data center disrupted multiple cryptocurrency platforms, including Binance.",
+      "source": "Reuters",
+      "url": "https://www.reuters.com/technology/binance-services-start-recover-after-network-interruption-2025-04-15/"
+    },
+    {
+      "fact": "Binance said some orders were still succeeding while others were failing during the interruption.",
+      "source": "Binance public statement as reported by Reuters",
+      "url": "https://www.reuters.com/technology/binance-services-start-recover-after-network-interruption-2025-04-15/"
+    },
+    {
+      "fact": "Binance temporarily suspended withdrawals for approximately 23 minutes as a safety precaution.",
+      "source": "Reuters",
+      "url": "https://www.reuters.com/technology/binance-services-start-recover-after-network-interruption-2025-04-15/"
+    }
+  ],
+  "observable_impact": [
+    "Temporary withdrawal interruption",
+    "Partial order failures during degraded upstream conditions",
+    "Operational uncertainty while services recovered"
+  ],
+  "inferred_design_lessons": [
+    "Transport success alone is not evidence quality.",
+    "AVAILABLE does not imply FRESH, CONSISTENT or ACTIONABLE.",
+    "Partial upstream degradation must reduce evidence coverage instead of being silently converted into confidence.",
+    "An agent-facing system must be able to abstain when the evidence contract is not satisfied."
+  ],
+  "unknown": [
+    "SignalForge was not running with a captured request trace during the 2025-04-15 incident, so its exact counterfactual output for that event is UNKNOWN.",
+    "This record does not claim that SignalForge would have prevented any financial loss during the incident.",
+    "The controlled negative-path fixture is a reproduction of the failure class, not a replay of historical Binance payloads."
+  ],
+  "signalforge_response": [
+    "Per-source provenance",
+    "Per-source freshness classification",
+    "Stale or unknown evidence excluded from signal availability",
+    "Coverage and confidence gating",
+    "insufficient_evidence abstention state",
+    "Fail-closed behavior when all usable sources disappear",
+    "execution_authorized=false on every Decision Packet"
+  ],
+  "verification": {
+    "controlled_negative_path": "/api/v1/evidence/negative-path",
+    "judge_surface": "/judge",
+    "test_intent": "Demonstrate refusal/abstention under degraded evidence without claiming a historical replay."
+  }
+}

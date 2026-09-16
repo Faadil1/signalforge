@@ -1,354 +1,181 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { clsx } from "clsx";
-import { Search, RefreshCw } from "lucide-react";
-import { fetchTickers, isSignalOk, safeJson, type MarketCards, type SignalCard, type SubSignal, type Ticker } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  ArrowRight,
+  Check,
+  Database,
+  GitBranch,
+  RefreshCw,
+  Search,
+  ShieldOff,
+  TriangleAlert,
+} from "lucide-react";
+import {
+  fetchDecisionPacket,
+  fetchRecoveryPlan,
+  fetchStressResult,
+  fetchTicker,
+  type DecisionPacket,
+  type RecoveryPlan,
+  type StressResult,
+  type Ticker,
+} from "@/lib/api";
 import { useInterval } from "@/lib/useInterval";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { PriceTicker } from "@/components/market/PriceTicker";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { SkeletonCard } from "@/components/ui/Skeleton";
-import { SignalCard as SignalCardView } from "@/components/signal/SignalCard";
-import { RecommendationBadge } from "@/components/signal/RecommendationBadge";
-import { ScoreGauge } from "@/components/charts/ScoreGauge";
+import { DecisionGate } from "@/components/forge/DecisionGate";
+import { EvidenceLease } from "@/components/forge/EvidenceLease";
+import { EvidenceDebt } from "@/components/forge/EvidenceDebt";
+import { ReceiptStrip } from "@/components/forge/ReceiptStrip";
 
-const POLL_MS = 10_000;
-const TICKER_POLL_MS = 4_000;
+const POLL_MS = 12_000;
+const QUICK = ["BTC", "ETH", "SOL", "BNB"];
 
-type SignalRow = {
-  token: string;
-  price?: number;
-  score?: number;
-  confidence?: number;
-  recommendation?: string;
-  sub_signals?: SubSignal[];
-  error?: string;
-};
-
-function cardToRow(card: SignalCard): SignalRow {
-  if (isSignalOk(card)) {
-    return {
-      token: card.token,
-      price: card.price,
-      score: card.score,
-      confidence: card.confidence,
-      recommendation: card.recommendation,
-      sub_signals: card.sub_signals,
-    };
-  }
-  return { token: card.token, error: card.error.message };
-}
-
-function secondsAgo(date: Date | null): string | null {
-  if (!date) return null;
-  const s = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  return `${Math.round(s / 60)}m ago`;
+function pct(value?: number) {
+  return value == null ? "—" : `${Math.round(value * 100)}%`;
 }
 
 export default function DashboardPage() {
-  const [signals, setSignals] = useState<SignalRow[]>([]);
+  const [token, setToken] = useState("BTC");
+  const [input, setInput] = useState("BTC");
+  const [packet, setPacket] = useState<DecisionPacket | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryPlan | null>(null);
+  const [stress, setStress] = useState<StressResult | null>(null);
+  const [ticker, setTicker] = useState<Ticker | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<SignalRow | null>(null);
-  const [quickToken, setQuickToken] = useState("");
-  const [quickLoading, setQuickLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [tickers, setTickers] = useState<Ticker[]>([]);
-  const [, setNow] = useState(Date.now());
 
-  useInterval(() => setNow(Date.now()), 1000);
-
-  const pollTickers = useCallback(async () => {
-    const ts = await fetchTickers();
-    if (ts.length) setTickers(ts);
+  const load = useCallback(async (nextToken: string, quiet = false) => {
+    if (!quiet) setLoading(true);
+    const [nextPacket, nextRecovery, nextStress, nextTicker] = await Promise.all([
+      fetchDecisionPacket(nextToken),
+      fetchRecoveryPlan(nextToken),
+      fetchStressResult(nextToken),
+      fetchTicker(nextToken),
+    ]);
+    setPacket(nextPacket);
+    setRecovery(nextRecovery);
+    setStress(nextStress);
+    setTicker(nextTicker);
+    setError(nextPacket ? null : `Could not load a Decision Packet for ${nextToken}.`);
+    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    pollTickers();
-  }, [pollTickers]);
+  useEffect(() => { void load("BTC"); }, [load]);
+  useInterval(() => void load(token, true), POLL_MS);
 
-  useInterval(pollTickers, TICKER_POLL_MS);
-
-  const loadSignals = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!opts?.silent) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      const res = await fetch("/api/v1/overview");
-      const data = await safeJson<MarketCards>(res, { market_cards: [] });
-      setSignals((data.market_cards || []).map(cardToRow));
-      setLastUpdated(new Date());
-    } catch (e) {
-      if (!opts?.silent) setError(e instanceof Error ? e.message : "Failed to load signals");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadSignals();
-  }, [loadSignals]);
-
-  useInterval(() => {
-    const silent = () => loadSignals({ silent: true });
-    silent();
-  }, POLL_MS);
-
-  const loadDetail = useCallback(async (token: string) => {
-    try {
-      const res = await fetch(`/api/v1/signal/${token}`);
-      const card = await safeJson<SignalCard>(res, {
-        ok: false,
-        token,
-        error: { code: "UNPARSEABLE", message: "Unexpected response" },
-      });
-      const row = cardToRow(card);
-      setSignals((prev) => {
-        const idx = prev.findIndex((s) => s.token === row.token);
-        if (idx === -1) return [...prev, row];
-        const next = [...prev];
-        next[idx] = row;
-        return next;
-      });
-      setSelected(row);
-      setLastUpdated(new Date());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to load ${token}, try again.`);
-    } finally {
-      setQuickLoading(false);
-    }
-  }, []);
-
-  useInterval(() => {
-    if (selected?.token) loadDetail(selected.token);
-  }, selected?.token ? POLL_MS : null);
-
-  const handleQuickSignal = () => {
-    const token = quickToken.trim().toUpperCase();
-    if (!token) return;
-    setQuickLoading(true);
-    loadDetail(token);
+  const inspect = (nextToken: string) => {
+    const normalized = nextToken.trim().toUpperCase();
+    if (!normalized) return;
+    setToken(normalized);
+    setInput(normalized);
+    void load(normalized);
   };
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadSignals();
-  };
+  const ledger = packet?.evidence_admission_ledger?.entries || [];
+  const admitted = ledger.filter((entry) => entry.decision_admitted);
+  const excluded = ledger.filter((entry) => !entry.decision_admitted);
+  const unavailable = packet?.data_quality.quality_summary?.unavailable_sources || [];
+  const liveProviders = packet?.evidence_lineage?.unique_live_providers || [];
+  const refusing = packet?.actionability === "insufficient_evidence";
 
-  const liveRows = signals.filter((s) => s.score !== undefined && !s.error);
-  const tickerByToken = new Map(tickers.map((t) => [t.token, t]));
-  const avgConfidence = liveRows.length
-    ? (liveRows.reduce((acc, s) => acc + (s.confidence || 0), 0) / liveRows.length) * 100
-    : 0;
-  const best = liveRows.length ? liveRows.reduce((a, b) => ((b.score || 0) > (a.score || 0) ? b : a)) : null;
-  const recCounts = liveRows.reduce<Record<string, number>>((acc, s) => {
-    if (s.recommendation) acc[s.recommendation] = (acc[s.recommendation] || 0) + 1;
-    return acc;
-  }, {});
-  const topRec = Object.entries(recCounts).sort((a, b) => b[1] - a[1])[0];
-
-  const KPI_DATA = [
-    { label: "Signals Live", value: liveRows.length.toLocaleString(), change: `${signals.length - liveRows.length} failed` },
-    { label: "Avg Confidence", value: liveRows.length ? `${avgConfidence.toFixed(1)}%` : "—", change: "computed" },
-    { label: "Strongest", value: best ? `${best.token} ${(best.score || 0).toFixed(1)}` : "—", change: best?.recommendation?.replace("_", " ") || "—" },
-    { label: "Consensus", value: topRec ? topRec[0].replace("_", " ") : "—", change: `${topRec ? topRec[1] : 0} tokens` },
-  ];
-
-  const filtered = signals.filter((s) => s.token?.toLowerCase().includes(search.toLowerCase()));
+  const marketPrice = useMemo(() => ticker?.price ? `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(ticker.price)}` : "—", [ticker]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Market Overview"
-        subtitle="Multi-signal composite scores from live Binance market data"
-        badge={
-          <div className="flex items-center gap-2">
-            <StatusBadge status={loading ? "stale" : error ? "error" : "live"} label={loading ? "Loading" : error ? "Error" : "Auto-refreshing"} />
-            <span className="hidden text-xs text-text-subtle sm:inline">
-              updated {secondsAgo(lastUpdated) ?? "…"}
-            </span>
+    <div className="space-y-7">
+      <header className="grid gap-6 border-b border-border/70 pb-6 xl:grid-cols-[1fr_auto] xl:items-end">
+        <div>
+          <p className="forge-eyebrow">05 / DECISION GATE</p>
+          <h1 className="forge-display mt-5 text-5xl font-semibold text-text md:text-7xl">One market.<br />Every reason to trust — or refuse it.</h1>
+          <p className="mt-5 max-w-3xl text-sm leading-6 text-text-secondary">This surface is organized by evidence state, not by price performance. The gate cannot hide missing inputs behind a score.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {QUICK.map((item) => (
+            <button key={item} onClick={() => inspect(item)} className={`chip font-mono text-[9px] uppercase tracking-[0.14em] transition ${token === item ? "border-prism-violet bg-prism-violet text-white" : "border-border bg-white/70 text-text-secondary hover:border-prism-violet/50"}`}>{item}</button>
+          ))}
+          <div className="relative ml-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
+            <input className="input w-32 pl-9 font-mono" value={input} maxLength={10} onChange={(event) => setInput(event.target.value.toUpperCase())} onKeyDown={(event) => event.key === "Enter" && inspect(input)} aria-label="Market token" />
           </div>
-        }
-        actions={
-          <Button size="md" variant="secondary" onClick={handleRefresh} loading={refreshing}>
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Button>
-        }
-      />
+          <Button variant="secondary" onClick={() => void load(token)} loading={loading}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+        </div>
+      </header>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {KPI_DATA.map((kpi) => (
-          <Card key={kpi.label} className="p-4">
-            <p className="text-[11px] uppercase tracking-wider text-text-subtle">{kpi.label}</p>
-            <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-text">{kpi.value}</p>
-            <p className="mt-0.5 text-[11px] text-text-subtle">{kpi.change}</p>
-          </Card>
+      {error && <div className="border border-prism-coral/40 bg-prism-coral/10 px-4 py-3 font-mono text-[10px] text-prism-coral">GATE ERROR / {error}</div>}
+
+      <section className="grid gap-px overflow-hidden border border-border bg-border lg:grid-cols-6">
+        {[
+          ["market", token, "#3257FF"],
+          ["price context", marketPrice, "#00C9E8"],
+          ["score", packet ? packet.score.toFixed(1) : "—", "#6E46FF"],
+          ["coverage", pct(packet?.coverage), "#6E46FF"],
+          ["confidence", pct(packet?.confidence), refusing ? "#FF4F73" : "#00C9E8"],
+          ["authority", "NONE", "#FF4F73"],
+        ].map(([label, value, color]) => (
+          <div key={label} className="relative bg-white/82 p-4">
+            <span className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
+            <p className="font-mono text-[8px] uppercase tracking-[0.17em] text-text-subtle">{label}</p>
+            <p className="mt-2 truncate font-mono text-lg font-semibold text-text">{value}</p>
+          </div>
         ))}
-      </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Signal Scores</CardTitle>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
-              <input
-                type="text"
-                placeholder="Filter token…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="input-sm pl-8 w-40 md:w-52"
-              />
-            </div>
-          </CardHeader>
-          <CardBody className="p-0">
-            {error && (
-              <div className="mx-4 mt-4 rounded-md bg-negative/10 p-3 text-xs text-negative font-mono">
-                {error} — <button onClick={() => loadSignals()} className="underline">retry</button>
-              </div>
-            )}
-            {loading ? (
-              <div className="grid gap-3 p-4 sm:grid-cols-2">
-                {[0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}
-              </div>
-            ) : (
-              <div>
-                <div className="grid grid-cols-12 gap-2 border-b border-border px-5 py-2 text-[10px] uppercase tracking-wider text-text-subtle">
-                  <div className="col-span-2">Token</div>
-                  <div className="col-span-2">Score</div>
-                  <div className="col-span-3">Recommendation</div>
-                  <div className="col-span-2">Confidence</div>
-                  <div className="col-span-3">Sub-Signals</div>
-                </div>
-                {filtered.map((s) =>
-                  s.error ? (
-                    <div key={s.token} className="grid grid-cols-12 gap-2 border-b border-border px-5 py-3 text-sm">
-                      <div className="col-span-2 font-mono font-medium">{s.token}</div>
-                      <div className="col-span-10 flex items-center gap-2">
-                        <Badge tone="warning">unavailable</Badge>
-                        <span className="truncate text-xs font-mono text-negative" aria-live="polite">{s.error}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      key={s.token}
-                      className={clsx(
-                        "grid cursor-pointer grid-cols-12 gap-2 border-b border-border px-5 py-3 text-sm transition-colors last:border-0",
-                        selected?.token === s.token ? "bg-surface-secondary" : "hover:bg-surface-secondary/60"
-                      )}
-                      onClick={() => loadDetail(s.token)}
-                    >
-                      <div className="col-span-2">
-                        <div className="font-mono font-medium text-text">{s.token}</div>
-                        <PriceTicker
-                          price={tickerByToken.get(s.token)?.price ?? s.price}
-                          changePct={tickerByToken.get(s.token)?.price_change_pct}
-                          className="text-xs text-text-subtle"
-                        />
-                      </div>
-                      <div className="col-span-2 font-mono font-semibold tabular-nums text-text">{s.score?.toFixed(1) ?? "—"}</div>
-                      <div className="col-span-3">
-                        {s.recommendation ? <RecommendationBadge recommendation={s.recommendation} /> : <span className="text-xs">—</span>}
-                      </div>
-                      <div className="col-span-2 font-mono text-xs text-text-secondary">
-                        {s.confidence != null ? `${(s.confidence * 100).toFixed(0)}%` : "—"}
-                      </div>
-                      <div className="col-span-3 space-y-1">
-                        {s.sub_signals?.slice(0, 3).map((ss) => (
-                          <div key={ss.name} className="flex items-center gap-2 text-[11px]">
-                            <span className="w-16 truncate text-text-subtle">{ss.name.replace("_", " ")}</span>
-                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-secondary">
-                              <div
-                                className={clsx("h-full rounded-full", ss.value >= 60 ? "bg-positive" : ss.value >= 40 ? "bg-text-secondary" : "bg-negative")}
-                                style={{ width: `${ss.value}%` }}
-                              />
-                            </div>
-                            <span className="w-7 text-right font-mono text-text-subtle">{ss.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                )}
-                {!filtered.length && <div className="p-6 text-center text-xs text-text-subtle">No signals match “{search}”</div>}
-              </div>
-            )}
-          </CardBody>
-        </Card>
+      <DecisionGate packet={packet} />
 
-        <div className="space-y-6">
-          {selected?.error ? (
-            <Card className="p-6 text-center">
-              <p className="font-mono text-xs text-negative" aria-live="polite">{selected.error}</p>
-              <p className="mt-2 text-xs text-text-subtle">Try another token or retry in a moment.</p>
-            </Card>
-          ) : selected ? (
-            <Card>
-              <CardBody>
-                <div className="text-center">
-                  <ScoreGauge score={selected.score} />
-                  <RecommendationBadge recommendation={selected.recommendation} />
-                  {selected.price != null && (
-                    <PriceTicker
-                      price={tickerByToken.get(selected.token)?.price ?? selected.price}
-                      changePct={tickerByToken.get(selected.token)?.price_change_pct}
-                      className="mt-3 justify-center text-sm text-text-secondary"
-                    />
-                  )}
-                </div>
-              </CardBody>
-            </Card>
-          ) : (
-            <Card className="flex h-48 items-center justify-center">
-              <p className="text-xs text-text-subtle">Click a token to view its breakdown</p>
-            </Card>
-          )}
-
-          <div className="space-y-3">
-            {selected?.sub_signals?.map((ss) => (
-              <SignalCardView
-                key={ss.name}
-                name={ss.name}
-                value={ss.value}
-                direction={ss.value >= 60 ? "positive" : ss.value >= 40 ? "neutral" : "negative"}
-                explanation={ss.reason}
-                confidence={ss.confidence}
-                available={ss.available}
-              />
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
+        <div className="forge-panel overflow-hidden">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/70 bg-white/60 px-5 py-4 md:px-6">
+            <div><p className="forge-eyebrow">02 / ADMISSION LEDGER</p><h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-text">What actually entered the decision?</h2></div>
+            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-text-subtle">{admitted.length} admitted / {excluded.length} excluded</span>
+          </div>
+          <div className="divide-y divide-border/70">
+            {ledger.map((entry, index) => (
+              <motion.div key={entry.raw_source} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * .03 }} className={`grid gap-3 px-5 py-4 md:grid-cols-[42px_1fr_110px_140px] md:items-center md:px-6 ${entry.decision_admitted ? "bg-prism-cyan/[0.045]" : "hatch-excluded bg-prism-coral/[0.035]"}`}>
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full border-4 border-white shadow-card ${entry.decision_admitted ? "bg-prism-cyan" : "bg-prism-coral"}`}>{entry.decision_admitted ? <Check className="h-4 w-4 text-prism-ink" /> : <TriangleAlert className="h-4 w-4 text-prism-ink" />}</div>
+                <div><p className="font-semibold text-text">{entry.raw_source.replaceAll("_", " ")}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-text-subtle">{entry.provider} · {entry.freshness_status}</p></div>
+                <div><p className="atlas-micro">used by</p><p className="mt-1 font-mono text-[9px] leading-4 text-text-secondary">{(entry.admitted_signals || []).join(", ") || "none"}</p></div>
+                <span className={`chip justify-center font-mono text-[8px] uppercase tracking-[0.12em] ${entry.decision_admitted ? "border-prism-cyan/40 bg-prism-cyan/12 text-prism-ink" : "border-prism-coral/40 bg-prism-coral/10 text-prism-coral"}`}>{entry.reason_code}</span>
+              </motion.div>
             ))}
           </div>
-
-          <Card>
-            <CardBody className="p-4">
-              <p className="mb-2 text-[11px] uppercase tracking-wider text-text-subtle">Quick Signal</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter token (e.g. BTC)"
-                  value={quickToken}
-                  maxLength={10}
-                  onChange={(e) => setQuickToken(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === "Enter" && handleQuickSignal()}
-                  className="input-sm"
-                />
-                <Button size="sm" onClick={handleQuickSignal} disabled={quickLoading || !quickToken.trim()}>
-                  {quickLoading ? "…" : "Get"}
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
         </div>
+
+        <div className="space-y-6">
+          <div className="forge-panel p-5 md:p-6">
+            <div className="flex items-center gap-2"><GitBranch className="h-5 w-5 text-prism-cobalt" /><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.17em] text-prism-cobalt">03 / LINEAGE</p></div>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-text">Provider concentration stays visible.</h2>
+            <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden border border-border bg-border">
+              <div className="bg-white/82 p-4"><p className="atlas-micro">dominant provider</p><p className="mt-2 font-mono text-[12px] font-semibold text-text">{packet?.evidence_lineage?.dominant_provider || "pending"}</p></div>
+              <div className="bg-white/82 p-4"><p className="atlas-micro">concentration</p><p className="mt-2 font-mono text-[12px] font-semibold text-prism-coral">{packet?.evidence_lineage?.concentration_level || "pending"}</p></div>
+            </div>
+            <div className="mt-5 space-y-2">{liveProviders.map((provider) => <div key={provider} className="flex items-center gap-3 border-b border-border/70 py-2"><Database className="h-4 w-4 text-prism-cyan" /><span className="font-mono text-[10px] text-text-secondary">{provider}</span></div>)}</div>
+            <p className="mt-4 font-mono text-[8px] uppercase leading-4 tracking-[0.13em] text-text-subtle">Lineage diagnostic ≠ statistical independence.</p>
+          </div>
+
+          <EvidenceLease packet={packet} />
+        </div>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[.65fr_.35fr]">
+        <EvidenceDebt recovery={recovery} />
+        <div className="forge-panel p-5 md:p-6">
+          <p className="forge-eyebrow">06 / FRAGILITY</p>
+          <p className="forge-display mt-5 text-5xl font-semibold text-text">{stress?.fragility_class?.replaceAll("_", " ") || "pending"}</p>
+          <p className="mt-5 text-sm leading-6 text-text-secondary">SignalForge stress-tests the current observed evidence by removing channels/providers. It does not invent replacement values or replay history.</p>
+          <div className="mt-6 border-t border-border/70 pt-4">
+            <p className="atlas-micro">current unavailable raw sources</p>
+            <p className="mt-2 font-mono text-[11px] font-semibold text-prism-coral">{unavailable.join(" + ") || "none"}</p>
+          </div>
+          <div className="mt-5 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-prism-coral"><ShieldOff className="h-4 w-4" /> execution_authorized:false</div>
+        </div>
+      </section>
+
+      <ReceiptStrip packet={packet} recovery={recovery} />
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-5">
+        <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-text-subtle">The next stage after refusal is evidence acquisition — not execution.</p>
+        <a href="/token" className="inline-flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-prism-violet hover:underline">Open full dossier <ArrowRight className="h-4 w-4" /></a>
       </div>
     </div>
   );

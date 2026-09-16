@@ -9,6 +9,8 @@ from typing import Any
 
 import httpx
 
+from services.data_quality import assess_freshness, is_usable_quality, source_timestamp_ms, summarize_quality
+
 logger = logging.getLogger(__name__)
 
 SPOT_BASE = "https://api.binance.com"
@@ -49,7 +51,11 @@ class BinancePublicClient:
     """Keyless Binance client with explicit provenance and fail-closed production mode."""
 
     def __init__(
-        self, timeout_s: float = 10.0, max_retries: int = 2, max_concurrency: int = 5, allow_mock_fallback: bool = False
+        self,
+        timeout_s: float = 10.0,
+        max_retries: int = 2,
+        max_concurrency: int = 5,
+        allow_mock_fallback: bool = False,
     ) -> None:
         self._timeout_s = timeout_s
         self._max_retries = max_retries
@@ -111,17 +117,22 @@ class BinancePublicClient:
 
     async def get_klines(self, symbol: str, interval: str = "1d", limit: int = 200) -> list[dict]:
         raw = await self._get(
-            FUTURES_BASE, "/fapi/v1/klines", params={"symbol": f"{symbol}USDT", "interval": interval, "limit": limit}
+            FUTURES_BASE,
+            "/fapi/v1/klines",
+            params={"symbol": f"{symbol}USDT", "interval": interval, "limit": limit},
         )
         out = []
         for k in raw:
             try:
-                ts = int(k[0]) / 1000
+                open_time = int(k[0])
+                ts = open_time / 1000
             except (TypeError, ValueError, IndexError):
                 continue
             out.append(
                 {
                     "date": datetime.fromtimestamp(ts, tz=UTC).strftime("%Y-%m-%d"),
+                    "open_time": open_time,
+                    "close_time": int(k[6]) if len(k) > 6 and k[6] is not None else None,
                     "open": _safe_float(k[1] if len(k) > 1 else None),
                     "high": _safe_float(k[2] if len(k) > 2 else None),
                     "low": _safe_float(k[3] if len(k) > 3 else None),
@@ -149,6 +160,7 @@ class BinancePublicClient:
             "index_price": _safe_float(data.get("indexPrice")),
             "last_funding_rate": _safe_float(data.get("lastFundingRate")),
             "next_funding_time": data.get("nextFundingTime"),
+            "time": data.get("time"),
         }
 
     async def get_futures_ticker(self, symbol: str) -> dict:
@@ -162,6 +174,7 @@ class BinancePublicClient:
             "high": _safe_float(data.get("highPrice")),
             "low": _safe_float(data.get("lowPrice")),
             "open": _safe_float(data.get("openPrice")),
+            "close_time": data.get("closeTime"),
         }
 
     async def _get_spot_ticker(self, symbol: str) -> dict:
@@ -175,6 +188,7 @@ class BinancePublicClient:
             "high": _safe_float(data.get("highPrice")),
             "low": _safe_float(data.get("lowPrice")),
             "open": _safe_float(data.get("openPrice")),
+            "close_time": data.get("closeTime"),
         }
 
     async def get_ticker(self, symbol: str) -> dict:
@@ -241,6 +255,7 @@ class BinancePublicClient:
             "index_price": self._mock_price(symbol),
             "last_funding_rate": round(random.uniform(-0.0002, 0.0002), 6),
             "next_funding_time": int((datetime.now(UTC) + timedelta(hours=8)).timestamp() * 1000),
+            "time": int(datetime.now(UTC).timestamp() * 1000),
         }
 
     async def fetch_signal_sources(self, symbol: str) -> dict[str, Any]:
@@ -306,22 +321,59 @@ class BinancePublicClient:
                 return None
 
         results = await asyncio.gather(
-            _fetch_ticker(), _fetch_klines(), _fetch_oi(), _fetch_funding(), return_exceptions=True
+            _fetch_ticker(),
+            _fetch_klines(),
+            _fetch_oi(),
+            _fetch_funding(),
+            return_exceptions=True,
         )
         ticker_data = results[0] if not isinstance(results[0], Exception) else {}
         klines_data = results[1] if not isinstance(results[1], Exception) else []
         oi_data = results[2] if not isinstance(results[2], Exception) else {}
         funding_data = results[3] if not isinstance(results[3], Exception) else None
+
+        raw_payloads = {
+            "ticker": ticker_data,
+            "klines": klines_data,
+            "open_interest": oi_data,
+            "funding": funding_data,
+        }
+        freshness: dict[str, dict[str, Any]] = {}
+        for source, payload in raw_payloads.items():
+            provenance_state = provenance.get(source, "unavailable")
+            if provenance_state == "mock":
+                provider_state = "mock"
+            elif provenance_state == "unavailable":
+                provider_state = "unavailable"
+            else:
+                provider_state = "live"
+            freshness[source] = assess_freshness(
+                source,
+                source_timestamp_ms(source, payload),
+                provider_state=provider_state,
+            )
+
+        if not is_usable_quality(freshness["ticker"]):
+            ticker_data = {}
+        if not is_usable_quality(freshness["klines"]):
+            klines_data = []
+        if not is_usable_quality(freshness["open_interest"]):
+            oi_data = {}
+        if not is_usable_quality(freshness["funding"]):
+            funding_data = None
+
         if not ticker_data and not klines_data and not oi_data and funding_data is None:
-            raise BinancePublicError(f"All signal sources unavailable for {symbol}")
-        sources = list(provenance.values())
+            raise BinancePublicError(f"All signal sources unavailable, stale, or timestamp-unknown for {symbol}")
+
+        statuses = [record["status"] for record in freshness.values()]
         mode = (
             "mock"
-            if any(s == "mock" for s in sources)
+            if any(status == "mock" for status in statuses)
             else "live_partial"
-            if any(s == "unavailable" for s in sources)
+            if any(status != "fresh" for status in statuses)
             else "live"
         )
+        observed_at = datetime.now(UTC).isoformat()
         return {
             "symbol": symbol.upper(),
             "klines": klines_data if isinstance(klines_data, list) else [],
@@ -332,7 +384,9 @@ class BinancePublicClient:
                 "mode": mode,
                 "provider": "binance_public",
                 "sources": provenance,
-                "observed_at": datetime.now(UTC).isoformat(),
+                "freshness": freshness,
+                "quality_summary": summarize_quality(freshness),
+                "observed_at": observed_at,
             },
         }
 

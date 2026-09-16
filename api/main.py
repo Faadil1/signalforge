@@ -10,9 +10,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routes import alerts, decision, playground, signals, strategies, tickers, validation
+from routes import alerts, capabilities, decision, evidence, mcp, playground, signals, strategies, tickers, validation
 from services.binance_client import binance
 from services.config import Settings, get_settings
+from services.decision_service import DECISION_CONTRACT_VERSION, POLICY_VERSION
 from services.errors import INTERNAL_ERROR
 from services.usage import usage
 
@@ -24,8 +25,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(
         title="SignalForge",
-        description="Evidence-bound crypto market decision intelligence from live Binance market data",
-        version="0.2.0",
+        description="Pre-action evidence gate for market agents using freshness-gated, multi-provider public market evidence.",
+        version="0.6.0",
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -69,7 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         start = time.perf_counter()
         response = await call_next(request)
         latency_ms = (time.perf_counter() - start) * 1000
-        if request.url.path.startswith("/api/"):
+        if request.url.path.startswith("/api/") or request.url.path == "/mcp":
             usage.record(request.url.path, latency_ms)
         return response
 
@@ -78,6 +79,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(playground.router, prefix="/api/v1")
     app.include_router(decision.router, prefix="/api/v1")
     app.include_router(validation.router, prefix="/api/v1")
+    app.include_router(evidence.router, prefix="/api/v1")
+    app.include_router(capabilities.router, prefix="/api/v1")
+    app.include_router(mcp.router)
     if settings.enable_backtests:
         app.include_router(strategies.router, prefix="/api/v1")
     if settings.enable_alerts:
@@ -92,6 +96,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "commit": settings.git_commit,
             "project_slug": settings.project_slug,
             "mock_fallback_enabled": settings.allow_mock_fallback,
+            "evidence_policy": "freshness_gated",
+            "decision_contract_version": DECISION_CONTRACT_VERSION,
+            "policy_version": POLICY_VERSION,
+            "capabilities": "/api/v1/capabilities",
+            "mcp": "/mcp",
+            "mcp_protocol_version": mcp.MCP_PROTOCOL_VERSION,
+            "negative_path": "/api/v1/evidence/negative-path",
+            "resilience_benchmark": "/api/v1/evidence/resilience-benchmark",
+            "decision_stress": "/api/v1/decision/{token}/stress",
+            "recovery_plan": "/api/v1/decision/{token}/recovery-plan",
+            "recovery_verification": "/api/v1/decision/{token}/verify-recovery",
+            "receipt_verification": "/api/v1/decision/verify-receipt",
         }
 
     @app.get("/.well-known/xagent-verification.json")

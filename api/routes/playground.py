@@ -32,6 +32,11 @@ def _build_endpoints(settings) -> list[dict]:
         },
         {
             "method": "GET",
+            "path": "/api/v1/evidence/negative-path",
+            "description": "Real-failure-backed controlled refusal proof with explicit epistemic boundaries",
+        },
+        {
+            "method": "GET",
             "path": "/api/v1/signals",
             "description": "Live signals for multiple tokens (comma-separated)",
         },

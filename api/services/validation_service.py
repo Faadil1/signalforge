@@ -17,7 +17,11 @@ def _safe_float(value, default=0.0) -> float:
 
 async def run_signal_validation(token: str, period_days: int = 120, horizon_days: int = 3) -> dict:
     limit = min(500, max(45, period_days + horizon_days))
-    candles = await binance.get_klines(token, interval="1d", limit=limit)
+    validation_getter = getattr(binance, "get_validation_klines", binance.get_klines)
+    candles = await validation_getter(token, interval="1d", limit=limit)
+    kline_source = getattr(candles, "source", "binance_public")
+    validation_provider = "multi_provider_public" if kline_source == "coinbase_exchange" else "binance_public"
+
     if len(candles) < 35 + horizon_days:
         raise ValueError(f"Insufficient historical candles: {len(candles)}")
     samples = []
@@ -42,7 +46,11 @@ async def run_signal_validation(token: str, period_days: int = 120, horizon_days
                 ticker=ticker,
                 open_interest={},
                 funding=None,
-                source_meta={"mode": "historical_proxy", "provider": "binance_public"},
+                source_meta={
+                    "mode": "historical_proxy",
+                    "provider": validation_provider,
+                    "sources": {"klines": kline_source, "ticker": "derived_from_klines"},
+                },
             )
         )
         forward_return = ((forward_close - current_close) / current_close) * 100.0
@@ -86,6 +94,8 @@ async def run_signal_validation(token: str, period_days: int = 120, horizon_days
         "full_composite_validated": False,
         "included_signals": ["technical", "trend", "volume"],
         "omitted_signals": ["funding", "open_interest"],
+        "data_provider": validation_provider,
+        "kline_source": kline_source,
         "directional_accuracy": round(accuracy, 3) if accuracy is not None else None,
         "buckets": bucket_results,
         "limitations": [
