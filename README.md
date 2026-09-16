@@ -20,7 +20,7 @@
 <p align="center"><sub>X-Agent MCP Hackathon 2026 · Live Cloudflare Worker · Read-only research authority</sub></p>
 
 > **Current status**  
-> TRACE v2 is live on Cloudflare. The public runtime is bound to source commit `ada65fe9b2170a910d458f2db9855fe087ca9446` and Cloudflare Version ID `a7d93227-a130-4403-aa37-f992c3bd61ea`. Production runs with mock fallback disabled. Every Decision Packet preserves `execution_authorized: false`.
+> The current SignalForge build is live on Cloudflare. The public runtime is bound to source commit `ada65fe9b2170a910d458f2db9855fe087ca9446` and Cloudflare Version ID `a7d93227-a130-4403-aa37-f992c3bd61ea`. Production runs with mock fallback disabled. Every Decision Packet preserves `execution_authorized: false`.
 
 ---
 
