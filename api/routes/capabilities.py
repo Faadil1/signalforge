@@ -14,7 +14,7 @@ async def capabilities():
     return {
         "ok": True,
         "service": "signalforge",
-        "job": "Pre-action evidence gate for market agents: verify what evidence entered, how long it remains fresh, how fragile the decision is, and refuse when evidence is insufficient.",
+        "job": "Pre-action evidence gate for market agents: verify what evidence entered, how long it remains fresh, how fragile the decision is, and refuse safely when evidence is insufficient.",
         "contract_version": DECISION_CONTRACT_VERSION,
         "policy_version": POLICY_VERSION,
         "agent_native": {
@@ -40,6 +40,7 @@ async def capabilities():
             "evidence_lease": "earliest_freshness_deadline_across_contributing_raw_sources",
             "decision_stress": "bounded_counterfactual_dropout_of_observed_evidence",
             "minimum_sufficient_evidence": "current_observed_values_only",
+            "refusal_recovery": "stateless_live_read_from_current_decision_packet",
             "receipt_verification": "stateless_no_market_fetch",
             "validation": "stateless_bounded_historical_calibration",
             "resilience_benchmark": "deterministic_controlled_policy_conformance",
@@ -52,6 +53,7 @@ async def capabilities():
             "decision_fragility": "Measures refusal boundaries under single-channel and provider dropouts without inventing replacement values.",
             "minimum_sufficient_evidence": "Finds the smallest currently observed signal subsets that still pass policy, without causal or future-sufficiency claims.",
             "recovery_requirements": "Returns necessary recovery conditions while explicitly refusing to claim they guarantee a directional handoff.",
+            "refusal_recovery": "Quantifies evidence debt, names safe reacquisition candidates, gates reevaluation, and issues a content-addressed refusal receipt without promising actionability.",
             "decision_receipt": "Binds material Decision Packet fields, including admission/lineage/lease diagnostics, to a SHA-256 digest for later integrity verification.",
         },
         "tools": [
@@ -80,6 +82,15 @@ async def capabilities():
                 "mcp_tool": "stress_test_decision",
                 "input": {"token": "asset symbol"},
                 "output": "Single-channel/provider-dropout fragility plus minimum currently sufficient evidence sets.",
+                "side_effects": "none",
+            },
+            {
+                "name": "plan_evidence_recovery",
+                "method": "GET",
+                "path": "/api/v1/decision/{token}/recovery-plan",
+                "mcp_tool": "plan_evidence_recovery",
+                "input": {"token": "asset symbol"},
+                "output": "Evidence debt, blocking conditions, safe reacquisition candidates, reevaluation gate, and content-addressed refusal receipt.",
                 "side_effects": "none",
             },
             {
@@ -122,6 +133,7 @@ async def capabilities():
             "actionable_research": "RESEARCH_HANDOFF",
             "all_paths_execution_authorized": False,
             "restored_availability_guarantees_handoff": False,
+            "recovery_guarantees_actionability": False,
             "freshness_lease_guarantees_forecast_validity": False,
             "minimum_sufficient_subset_guarantees_future_sufficiency": False,
         },
