@@ -1,65 +1,162 @@
-<div align="center">
-
+<p align="center">
   <img src="assets/logo.svg" alt="SignalForge logo" width="280" height="64" />
+</p>
 
-  # SignalForge
+<h1 align="center">SignalForge</h1>
 
-  **Evidence-bound market intelligence for humans and agents.**
+<p align="center"><strong>Evidence before recommendation.</strong></p>
+<p align="center">A pre-action evidence gate for market agents: admit usable evidence, refuse weak conclusions, and make every handoff inspectable.</p>
 
-  Five complementary market evidence channels, explicit provenance, confidence gating,
-  and agent-ready Decision Packets built on live Binance public data.
-</div>
+<p align="center">
+  <a href="https://signalforge.faadil-casecraft.workers.dev"><strong>Live App</strong></a>
+  ·
+  <a href="https://signalforge.faadil-casecraft.workers.dev/judge/"><strong>Judge Proof Surface</strong></a>
+  ·
+  <a href="docs/JUDGE-DEMO.md"><strong>Demo Runbook</strong></a>
+  ·
+  <a href="docs/AGENT-INTEGRATION.md"><strong>Agent Integration</strong></a>
+</p>
 
-<div align="center">
+<p align="center"><sub>X-Agent MCP Hackathon 2026 · Live Cloudflare Worker · Read-only research authority</sub></p>
 
-[![License](https://img.shields.io/badge/license-MIT-22C55E.svg)](LICENSE)
-[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-18181B.svg)](.github/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.12-3B82F6.svg)](api/requirements.txt)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-06B6D4.svg)](api/requirements.txt)
-[![Next.js](https://img.shields.io/badge/Next.js-14.2-18181B.svg)](web/package.json)
-[![Hackathon](https://img.shields.io/badge/X--Agent%20MCP%20Hackathon-Open%20Innovation-A855F7.svg)](https://xagt.ai/hackathon?lang=en)
-
-</div>
+> **Current status**  
+> TRACE v2 is live on Cloudflare. The public runtime is bound to source commit `ada65fe9b2170a910d458f2db9855fe087ca9446` and Cloudflare Version ID `a7d93227-a130-4403-aa37-f992c3bd61ea`. Production runs with mock fallback disabled. Every Decision Packet preserves `execution_authorized: false`.
 
 ---
 
-## What SignalForge does
+## Why SignalForge exists
 
-SignalForge turns public crypto-market data into an explainable **Composite Signal Score (0–100)** and, more importantly, an **evidence-bound Decision Packet** for agents.
+### The pain
 
-The system fuses five complementary evidence channels:
+Market agents can receive a clean-looking score even when the evidence underneath it is stale, partial, concentrated in one provider, or simply unavailable.
 
-| Evidence channel | Weight | What it measures |
-|---|---:|---|
-| Technical | 25% | RSI + moving-average structure |
-| Trend | 25% | Price direction + market structure |
-| Funding | 20% | Funding-rate crowding |
-| Open Interest | 15% | Positioning intensity contextualized by price direction |
-| Volume | 15% | Directional volume surge vs. recent average |
+That is dangerous because **an answer can look complete while its evidence is not**.
 
-Missing evidence is **not** silently converted into a neutral score. Only available evidence contributes to the fusion denominator, while coverage and confidence determine whether a directional recommendation is allowed to exist at all.
+### The problem
 
-SignalForge is built for the **X-Agent AI MCP Hackathon 2026 — Open Innovation track**.
+Before an agent acts on a market conclusion, it should be able to answer:
+
+- Which raw sources actually contributed?
+- Which sources were excluded, and why?
+- How fresh is each contributing input?
+- Is the available coverage sufficient?
+- Is confidence high enough to permit a directional handoff?
+- What would invalidate the conclusion?
+- What evidence would need to recover before another attempt?
+- Can the result be verified later without trusting presentation copy?
+
+Most signal tools optimize for producing an answer. SignalForge optimizes for deciding whether an answer is **admissible at all**.
+
+### Why SignalForge is different
+
+SignalForge turns live public market data into an evidence-bound Decision Packet.
+
+- Raw inputs are freshness- and quality-gated before fusion.
+- Missing evidence is excluded instead of silently becoming a neutral score.
+- Coverage and confidence can force an explicit refusal.
+- Every signal exposes provider and raw-input lineage.
+- Every packet carries a freshness-bounded evidence lease.
+- Recovery requirements describe necessary conditions without promising success.
+- A SHA-256 receipt makes packet tampering detectable.
+- REST and MCP expose the same bounded, read-only authority model.
+- No product state authorizes trade execution.
+
+**RAW SOURCE → ADMISSION / EXCLUSION → LINEAGE → LEASE → POLICY GATE → REFUSAL OR HANDOFF → RECEIPT**
+
+---
+
+## Live proof
+
+The canonical runtime is:
+
+```text
+https://signalforge.faadil-casecraft.workers.dev
+```
+
+Core verification calls:
+
+```bash
+curl https://signalforge.faadil-casecraft.workers.dev/health
+curl https://signalforge.faadil-casecraft.workers.dev/.well-known/xagent-verification.json
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC/delta
+curl "https://signalforge.faadil-casecraft.workers.dev/api/v1/validation/BTC?period_days=120&horizon_days=3"
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/evidence/negative-path
+```
+
+The verified production snapshot established all of the following:
+
+- `/health` returned `status: ok` and the exact deployed source commit.
+- X-Agent verification returned the same commit and `slug: signalforge`.
+- Production data mode was live-partial, not mock.
+- Unavailable funding and open-interest evidence were excluded rather than invented.
+- BTC actionability resolved to `insufficient_evidence` when confidence was below policy threshold.
+- `execution_authorized` remained `false`.
+- The negative-path fixture passed and preserved abstention under degraded evidence.
+- Historical calibration disclosed that only the price-derived 3/5 subset is validated by that endpoint.
+
+See [`docs/RUNTIME-PROOF.md`](docs/RUNTIME-PROOF.md) for the compact public receipt.
 
 ---
 
 ## Trust model
 
-Production mode is deliberately fail-closed.
+SignalForge is intentionally fail-closed.
 
-- Binance market evidence is fetched from public spot/futures endpoints.
-- Synthetic fallback is disabled by default.
-- `ALLOW_MOCK_FALLBACK=true` exists only for an explicitly labelled demo mode.
-- Any synthetic result is marked `data_mode=mock`.
-- Partial upstream failure is marked `data_mode=live_partial`.
-- Every Decision Packet includes source provenance and observed time.
-- Every Decision Packet declares `execution_authorized: false`.
+| Condition | Product behavior |
+|---|---|
+| Fresh usable evidence | Eligible for admission |
+| Stale / unavailable / inconsistent evidence | Excluded before fusion |
+| Coverage below policy | Refuse directional handoff |
+| Confidence below policy | Refuse directional handoff |
+| Mock evidence in production | Not admitted as live evidence |
+| Recovery requirement present | Necessary condition only; no guarantee |
+| Packet integrity changed | Receipt verification fails |
+| Agent asks for execution authority | Not granted |
 
-A directional recommendation is withheld when coverage or adjusted confidence is below the minimum evidence gate.
+Canonical rule:
+
+```text
+AVAILABLE != FRESH != CONSISTENT != ACTIONABLE
+```
+
+Production uses public market data with explicit provenance. Price-derived evidence can fall back to Coinbase Exchange when Binance endpoints are unavailable from the runtime environment. Funding and open interest remain unavailable when no supported live source is available.
 
 ---
 
-## Agent-native API
+## Real failure, controlled negative path
+
+SignalForge anchors its refusal model in a real infrastructure failure class.
+
+On **2025-04-15**, an AWS Tokyo connectivity incident affected Binance services. Public reporting described partial service disruption: some orders succeeded while others failed, and withdrawals were temporarily suspended.
+
+SignalForge does **not** claim to have captured or replayed that historical event.
+
+Instead, the product keeps the epistemic boundary explicit:
+
+1. the historical incident is sourced external evidence;
+2. the product reproduces the **failure class** with a controlled fixture;
+3. degraded evidence must reduce usable coverage;
+4. the system must abstain instead of manufacturing confidence.
+
+Evidence records:
+
+- [`evidence/real-failures/AWS-TOKYO-BINANCE-2025-04-15.md`](evidence/real-failures/AWS-TOKYO-BINANCE-2025-04-15.md)
+- [`evidence/real-failures/aws-tokyo-binance-2025-04-15.json`](evidence/real-failures/aws-tokyo-binance-2025-04-15.json)
+
+---
+
+## Agent-native execution model
+
+SignalForge exposes the same bounded contract through REST and stateless MCP.
+
+### Capability contract
+
+```http
+GET /api/v1/capabilities
+```
+
+Describes tool contracts, state semantics, protocol versions, side-effect boundaries, safe-failure behavior, and authority limits.
 
 ### Decision Packet
 
@@ -67,204 +164,113 @@ A directional recommendation is withheld when coverage or adjusted confidence is
 GET /api/v1/decision/BTC
 ```
 
-Returns:
+Includes:
 
-- stance + composite score
-- confidence + coverage
-- actionability gate
-- 1–3 day decision horizon
-- market regime
-- supporting / contradicting / neutral evidence
-- provider + per-source provenance
-- invalidation conditions
-- snapshot identifier
-- `execution_authorized: false`
+- stance and composite score;
+- confidence and coverage;
+- actionability state;
+- evidence grouped as supporting / contradicting / neutral;
+- source freshness and provenance;
+- evidence admission ledger;
+- provider/raw-input lineage;
+- evidence lease with `valid_until`;
+- recovery requirements;
+- invalidation conditions;
+- next safe agent action;
+- snapshot ID;
+- tamper-evident SHA-256 receipt;
+- `execution_authorized: false`.
 
-### Signal Delta
-
-```http
-GET /api/v1/decision/BTC/delta
-```
-
-Establishes a baseline and then reports material changes in:
-
-- score
-- evidence drivers
-- stance
-- actionability
-
-The current hackathon implementation stores the comparison baseline in process memory and exposes that limitation explicitly.
-
-### Validation Lab
+### MCP
 
 ```http
-GET /api/v1/validation/BTC?period_days=120&horizon_days=3
+POST /mcp
+MCP-Protocol-Version: 2026-07-28
 ```
 
-The first calibration pass evaluates the **price-derived 3/5 subset** (`technical`, `trend`, `volume`) against future returns using real Binance historical klines.
+Supported methods:
 
-It intentionally returns:
+- `server/discover`
+- `tools/list`
+- `tools/call`
 
-```json
-{
-  "validation_scope": "price_derived_3_of_5",
-  "full_composite_validated": false,
-  "included_signals": ["technical", "trend", "volume"],
-  "omitted_signals": ["funding", "open_interest"]
-}
-```
+Current tools include decision retrieval, stateless comparison, stress testing, receipt verification, bounded calibration, negative-path inspection, and evidence-resilience checks.
 
-SignalForge does not claim full five-signal historical calibration until aligned historical funding and open-interest series are actually ingested.
+The MCP surface is read-only and does not execute trades.
 
 ---
 
-## Judge proof surface
+## Architecture
 
-Open:
-
-```text
-/judge
+```mermaid
+flowchart LR
+    M[Public market sources] --> Q[Quality + freshness gate]
+    Q --> A[Evidence admission ledger]
+    A --> L[Lineage + lease]
+    L --> F[Signal fusion]
+    F --> P[Policy gate]
+    P -->|sufficient| D[Decision Packet]
+    P -->|insufficient| R[Explicit refusal]
+    D --> X[REST + MCP]
+    R --> X
+    X --> T[Agent / judge / researcher]
 ```
 
-The page calls the public service directly and shows the raw responses for:
+Core runtime:
 
-1. `/health`
-2. `/.well-known/xagent-verification.json`
-3. `/api/v1/decision/BTC`
-4. `/api/v1/decision/BTC/delta`
-5. `/api/v1/validation/BTC?period_days=120&horizon_days=3`
+- **FastAPI / Python** — market, decision, evidence, recovery, validation and MCP services.
+- **Next.js** — live product and judge-facing proof surfaces.
+- **Cloudflare Worker** — one public origin for static UI and Python API runtime.
+- **Public market providers** — source data with explicit per-source provenance.
+- **Decision receipts** — deterministic packet-integrity verification.
 
-This keeps the judge-facing evidence separate from marketing copy.
+More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## X-Agent deployment binding
+## Judge path
 
-The public deployment must expose the exact reviewed Git commit.
+The fastest review path is [`/judge/`](https://signalforge.faadil-casecraft.workers.dev/judge/).
 
-`GET /health`
+A useful sequence is:
 
-```json
-{
-  "status": "ok",
-  "service": "signalforge",
-  "commit": "<40-character-reviewed-commit>",
-  "project_slug": "signalforge",
-  "mock_fallback_enabled": false
-}
-```
+1. verify `/health` and X-Agent commit binding;
+2. inspect the BTC Decision Packet;
+3. inspect what evidence was admitted or excluded;
+4. inspect lease, lineage, confidence and coverage;
+5. show the negative path and refusal behavior;
+6. show bounded historical calibration;
+7. inspect MCP discovery and one read-only tool call.
 
-`GET /.well-known/xagent-verification.json`
-
-```json
-{
-  "schemaVersion": 1,
-  "slug": "signalforge",
-  "commit": "<40-character-reviewed-commit>"
-}
-```
-
-The commit is read from `GIT_COMMIT`, `VERCEL_GIT_COMMIT_SHA`, or `CF_PAGES_COMMIT_SHA`. `/health` reports `degraded` when no valid 40-character commit binding is available.
-
-The Next.js frontend proxies both verification endpoints to the backend so the same public origin can satisfy the judge contract.
+Runbook: [`docs/JUDGE-DEMO.md`](docs/JUDGE-DEMO.md).
 
 ---
 
-## Backtesting
+## Repository guide
 
-SignalForge includes three deterministic experimental strategies:
+The public repository is intentionally submission-focused:
 
-| Strategy | ID | Logic |
-|---|---|---|
-| Momentum Rider | `momentum` | Short MA > long MA + rising price |
-| Mean Reversion | `mean_reversion` | RSI oversold/overbought |
-| Sentiment Flow | `sentiment_flow` | Trend structure + RSI positioning |
+- `api/` — FastAPI, decision, evidence, recovery, market-data and MCP services
+- `web/` — product UI and judge proof surface
+- `tests/` — deterministic policy, API, recovery and provider-fallback coverage
+- `evidence/real-failures/` — sourced public failure evidence used by the negative path
+- `docs/ARCHITECTURE.md` — compact system map
+- `docs/AGENT-INTEGRATION.md` — REST/MCP integration contract
+- `docs/JUDGE-DEMO.md` — reviewer runbook
+- `docs/RUNTIME-PROOF.md` — public runtime binding and proof summary
+- `docs/RUNTIME-DEPLOYMENT.md` — deployment notes
 
-Backtests use real Binance OHLCV klines. Transaction costs now worsen both entry and exit prices, and trades are recorded on the actual next-candle execution date rather than the signal candle.
-
-```bash
-curl "http://localhost:8000/api/v1/strategy/momentum/backtest?token=BTC&period=90d"
-```
-
----
-
-## Other API endpoints
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/v1/signal/{token}` | Composite signal + provenance + evidence gate |
-| GET | `/api/v1/signals` | Batch signals |
-| GET | `/api/v1/overview` | Market overview cards |
-| GET | `/api/v1/signal/{token}/history` | Binance OHLCV history |
-| GET | `/api/v1/decision/{token}` | Agent Decision Packet |
-| GET | `/api/v1/decision/{token}/delta` | Material-change detection |
-| GET | `/api/v1/validation/{token}` | Historical calibration lab |
-| GET | `/api/v1/strategies` | Strategy catalog when enabled |
-| GET | `/api/v1/strategy/{id}/backtest` | Experimental strategy backtest when enabled |
-| GET | `/api/v1/playground/endpoints` | Capability catalog |
-| GET | `/api/v1/playground/usage` | In-process usage summary |
-
-Webhook alerts still exist behind a feature flag, but are **disabled by default** for the public judge build until multi-tenant ownership and durable storage are completed.
+Internal research, design exploration, naming studies, strategy notes, operational handovers, and private working-state files are intentionally excluded from the submission tree.
 
 ---
 
-## Local setup
-
-### Backend
-
-```bash
-cd api
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-### Frontend
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-The web service proxies `/api/*`, `/health`, and `/.well-known/xagent-verification.json` to `API_URL`.
-
-### Docker
-
-```bash
-docker compose up --build
-```
-
----
-
-## Environment
-
-See [`.env.example`](.env.example).
-
-Important judge settings:
-
-```env
-ALLOW_MOCK_FALLBACK=false
-ENABLE_ALERTS=false
-ENABLE_BACKTESTS=true
-PROJECT_SLUG=signalforge
-GIT_COMMIT=<exact-reviewed-commit>
-```
-
-Do not fabricate the commit or deployment URL. The final X-Agent package must bind to the actual reviewed deployment.
-
----
-
-## Quality gates
+## Development
 
 Backend:
 
 ```bash
-cd api
-ruff check .
-ruff format --check .
-pytest ../tests -v
+uv sync --locked --all-groups
+uv run pytest
 ```
 
 Frontend:
@@ -273,16 +279,44 @@ Frontend:
 cd web
 npm ci
 npm run lint
-npx tsc --noEmit
 npm run build
 ```
 
-The canonical judge checklist is in [`JUDGE-READY.md`](JUDGE-READY.md). Submission packaging requirements are tracked in [`docs/XAGENT-SUBMISSION-CHECKLIST.md`](docs/XAGENT-SUBMISSION-CHECKLIST.md).
+Cloudflare bundle verification:
+
+```powershell
+$env:CLOUDFLARE_STATIC_EXPORT = "1"
+cd web
+npm run build
+cd ..
+uv run pywrangler deploy --dry-run
+```
 
 ---
 
+## Product boundaries
+
+SignalForge is a research and evidence-admission system.
+
+It does **not** claim:
+
+- autonomous trading authority;
+- guaranteed profitability;
+- full five-signal historical validation;
+- statistical independence between signals;
+- that a freshness lease guarantees forecast validity;
+- that restoring missing evidence guarantees a directional conclusion;
+- that an integrity receipt is a cryptographic identity signature.
+
+Every public Decision Packet keeps execution authority external.
+
+---
+
+## Team
+
+- **Faadil Boussari** — product / repo lead
+- **Opeyemi (`opeblow`)** — collaborator / technical lead
+
 ## License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE).
-
-Copyright (c) 2026 Mobolaji Opeyemi Bolatito.
+MIT — see [`LICENSE`](LICENSE).
