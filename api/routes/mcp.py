@@ -10,13 +10,14 @@ from services.decision_service import compare_with_live_decision, get_decision_p
 from services.evidence_intelligence import verify_decision_receipt
 from services.evidence_service import build_negative_path_evidence, build_resilience_benchmark
 from services.rate_limit import rate_limit
+from services.recovery_service import get_recovery_plan
 from services.symbols import is_valid_token, normalize_token
 from services.validation_service import run_signal_validation
 
 router = APIRouter(tags=["mcp"])
 
 MCP_PROTOCOL_VERSION = "2026-07-28"
-SERVER_INFO = {"name": "signalforge", "version": "0.5.0"}
+SERVER_INFO = {"name": "signalforge", "version": "0.6.0"}
 SERVER_META = {"io.modelcontextprotocol/serverInfo": SERVER_INFO}
 
 READ_ONLY_ANNOTATIONS = {
@@ -66,6 +67,21 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Measure how the current Decision Packet changes when already-observed evidence channels or providers "
             "are removed. No replacement values are invented and no historical replay is claimed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"token": {"type": "string", "pattern": "^[A-Za-z0-9]{2,10}$"}},
+            "required": ["token"],
+            "additionalProperties": False,
+        },
+        "annotations": READ_ONLY_ANNOTATIONS,
+    },
+    {
+        "name": "plan_evidence_recovery",
+        "title": "Plan Evidence Recovery",
+        "description": (
+            "For the current Decision Packet, quantify evidence debt and return safe reacquisition candidates, "
+            "a reevaluation gate, and a content-addressed refusal receipt. Recovery never guarantees actionability."
         ),
         "inputSchema": {
             "type": "object",
@@ -236,6 +252,13 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> tuple[Any, bool]:
         result = await get_decision_stress_test(token)
         return result, not bool(result.get("ok"))
 
+    if name == "plan_evidence_recovery":
+        token = _normalize_valid_token(arguments.get("token"))
+        if token is None:
+            return {"code": "INVALID_TOKEN", "message": "token must match ^[A-Z0-9]{2,10}$"}, True
+        result = await get_recovery_plan(token)
+        return result, not bool(result.get("ok"))
+
     if name == "verify_decision_receipt":
         packet = arguments.get("packet")
         if not isinstance(packet, dict):
@@ -291,8 +314,9 @@ async def mcp_post(request: Request):
                 "capabilities": {"tools": {"listChanged": False}},
                 "instructions": (
                     "SignalForge is a read-only pre-action evidence gate. Use get_decision_packet first; "
-                    "stress_test_decision reveals fragility and provider concentration; if the gate refuses, "
-                    "refresh real evidence rather than inventing conviction. No tool authorizes execution."
+                    "stress_test_decision reveals fragility; when the gate refuses, plan_evidence_recovery "
+                    "quantifies evidence debt and safe reacquisition candidates. Reevaluate only after real "
+                    "evidence returns and passes quality gates. No tool authorizes execution."
                 ),
                 "ttlMs": 300000,
                 "cacheScope": "public",
