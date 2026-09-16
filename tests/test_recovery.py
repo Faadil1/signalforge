@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
+from main import app
 from services.recovery_service import build_recovery_plan
 
 
@@ -74,3 +77,20 @@ def test_missing_derivatives_are_reacquisition_targets_not_synthetic_inputs() ->
     assert by_signal["funding"]["source_requirements"][0]["current_state"] == "unavailable"
     assert by_signal["open_interest"]["source_requirements"][0]["current_state"] == "unavailable"
     assert "SignalForge does not synthesize missing funding or open-interest evidence." in plan["non_guarantees"]
+
+
+def test_recovery_plan_is_public_read_only_capability(monkeypatch) -> None:
+    import routes.decision as decision_route
+
+    async def fake_recovery(_token: str):
+        return build_recovery_plan(_refused_packet())
+
+    monkeypatch.setattr(decision_route, "get_recovery_plan", fake_recovery)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/decision/BTC/recovery-plan")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["contract"] == "refusal_recovery_v1"
+    assert body["refusal_receipt_id"]
+    assert body["execution_authorized"] is False
