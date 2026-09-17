@@ -1,4 +1,4 @@
-# SignalForge — Judge Demo Runbook
+# SignalForge — Demo Guide
 
 Goal: demonstrate usefulness **and** refusal behavior in a few minutes without making claims stronger than the evidence.
 
@@ -8,15 +8,15 @@ Goal: demonstrate usefulness **and** refusal behavior in a few minutes without m
 
 ## Part A — Runtime binding
 
-1. Open `https://signalforge.faadil-casecraft.workers.dev/judge/`.
-2. Show `/health` and confirm the exact deployed commit.
-3. Show `/.well-known/xagent-verification.json` and confirm the same commit and `slug: signalforge`.
-4. State that production mock fallback is disabled.
+1. Open the live app: `https://signalforge.faadil-casecraft.workers.dev/`.
+2. Open `/health` and confirm the exact deployed commit.
+3. Open `/.well-known/xagent-verification.json` and confirm the same commit and `slug: signalforge`.
+4. Confirm that production mock fallback is disabled.
 
 ## Part B — Live Decision Packet
 
 1. Open `/api/v1/decision/BTC`.
-2. Point to:
+2. Inspect:
    - source provenance;
    - freshness/data-quality metadata;
    - admission/exclusion ledger;
@@ -27,28 +27,26 @@ Goal: demonstrate usefulness **and** refusal behavior in a few minutes without m
    - recovery requirements;
    - invalidation conditions;
    - `execution_authorized: false`.
-3. If actionability is `insufficient_evidence`, explain that refusal is the intended result when policy conditions are not met.
-4. If the policy gate passes, describe the result as a bounded research handoff, not execution authority.
+3. If actionability is `insufficient_evidence`, refusal is the intended result when policy conditions are not met.
+4. If the policy gate passes, treat the result as a bounded research handoff, not execution authority.
 
 ## Part C — Change and fragility
 
 1. Open `/api/v1/decision/BTC/delta` for the process-local convenience delta.
-2. Explain that durable cross-isolate comparison uses the caller-supplied prior packet through the stateless compare path.
-3. Open the decision stress surface to show how evidence dropouts affect current-policy sufficiency without inventing replacement evidence.
+2. Durable cross-isolate comparison uses the caller-supplied prior packet through the stateless compare path.
+3. Use the decision stress endpoint to inspect how evidence dropouts affect current-policy sufficiency without invented replacement evidence.
 
 ## Part D — Real failure + controlled negative path
 
 1. Open `/api/v1/evidence/negative-path`.
 2. Start with the sourced historical failure class: the 2025-04-15 AWS Tokyo connectivity incident affecting Binance services.
-3. State the epistemic boundary clearly:
+3. Keep the epistemic boundary explicit:
    - the external event is real;
    - SignalForge did not capture live requests during that historical incident;
    - the fixture is a controlled reproduction of the failure class, not a historical replay.
 4. Show the controlled degraded evidence state.
 5. Show that degraded inputs are removed from usable evidence.
 6. Show that the result preserves `execution_authorized: false`.
-
-Close this section with:
 
 ```text
 AVAILABLE != FRESH != CONSISTENT != ACTIONABLE
@@ -62,7 +60,7 @@ Open:
 /api/v1/validation/BTC?period_days=120&horizon_days=3
 ```
 
-State exactly what the endpoint proves:
+The endpoint intentionally states its scope:
 
 - it evaluates the price-derived 3/5 subset;
 - funding and open interest are omitted from this historical calibration;
@@ -71,25 +69,25 @@ State exactly what the endpoint proves:
 
 ## Part F — MCP
 
-1. Show `/api/v1/capabilities`.
+1. Open `/api/v1/capabilities`.
 2. Use MCP `server/discover` or `tools/list`.
 3. Run one read-only tool call such as `get_decision_packet` or `inspect_negative_path`.
-4. Close by pointing out that the MCP surface has no market execution side effects.
+4. The MCP surface has no market execution side effects.
 
 ## Claims to avoid
 
-Do not say:
+Do not claim:
 
-- “this would have prevented losses during the historical incident”;
-- “we replayed the incident”;
-- “all five signals are historically validated”;
-- “the signals are statistically independent”;
-- “the evidence lease guarantees forecast validity”;
-- “restoring missing evidence guarantees a directional result”;
-- “the receipt is a digital signature”;
-- “the system can execute trades autonomously.”
+- that SignalForge would have prevented losses during the historical incident;
+- that the incident was replayed;
+- that all five signals are historically validated;
+- that the signals are statistically independent;
+- that the evidence lease guarantees forecast validity;
+- that restoring missing evidence guarantees a directional result;
+- that the receipt is a digital signature;
+- that the system can execute trades autonomously.
 
-## Final public verification set
+## Public verification set
 
 ```bash
 curl https://signalforge.faadil-casecraft.workers.dev/health

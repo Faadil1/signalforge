@@ -57,4 +57,4 @@ It does **not** prove:
 - full five-signal historical validation;
 - execution authority.
 
-For a reviewer-facing walkthrough, use [`JUDGE-DEMO.md`](JUDGE-DEMO.md).
+For a public walkthrough, use [`DEMO.md`](DEMO.md).

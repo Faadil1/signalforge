@@ -33,7 +33,6 @@ jobs:
           npm ci
           npm run build
           test -f out/index.html
-          test -f out/judge/index.html
 
       - uses: actions/setup-python@v7
         with:

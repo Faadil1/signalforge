@@ -16,7 +16,7 @@ flowchart LR
     P -->|insufficient| R[Refusal]
     D --> I[REST + MCP]
     R --> I
-    I --> C[Agent / researcher / judge]
+    I --> C[Agent / researcher / operator]
 ```
 
 ## Components
@@ -82,17 +82,18 @@ The Next.js application exposes:
 - the product lifecycle view;
 - live decision/evidence surfaces;
 - token-level forensic evidence views;
-- calibration and playground surfaces;
-- `/judge/` for direct proof inspection.
+- calibration and playground surfaces.
+
+Runtime verification stays available through the documented public API endpoints without adding a separate readiness scorecard to the product UI.
 
 ### Cloudflare deployment
 
-The judged runtime uses one Cloudflare Worker origin:
+The public runtime uses one Cloudflare Worker origin:
 
 - Next.js is exported as static assets;
 - the Python FastAPI application runs through the Cloudflare Worker adapter;
 - API/proof paths are routed through the Worker;
-- judge-facing UI and API therefore share one origin.
+- product UI and API therefore share one origin.
 
 See [`RUNTIME-DEPLOYMENT.md`](RUNTIME-DEPLOYMENT.md) for deployment mechanics and [`RUNTIME-PROOF.md`](RUNTIME-PROOF.md) for the currently verified production binding.
 

@@ -35,7 +35,7 @@ export function Logo({
       <LogoMark className={markClass} />
       <div className="leading-none">
         <span className="block text-[15px] font-semibold tracking-[-0.03em] text-text">SignalForge</span>
-        <span className="mt-1 block font-mono text-[7px] uppercase tracking-[0.2em] text-prism-violet">evidence foundry</span>
+        <span className="mt-1 block font-mono text-[7px] uppercase tracking-[0.2em] text-prism-violet">pre-action evidence gate</span>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="SignalForge logo" width="280" height="64" />
+  <img src="assets/logo.svg" alt="SignalForge logo" width="320" height="64" />
 </p>
 
 <h1 align="center">SignalForge</h1>
@@ -10,11 +10,11 @@
 <p align="center">
   <a href="https://signalforge.faadil-casecraft.workers.dev"><strong>Live App</strong></a>
   ·
-  <a href="https://signalforge.faadil-casecraft.workers.dev/judge/"><strong>Judge Proof Surface</strong></a>
-  ·
-  <a href="docs/JUDGE-DEMO.md"><strong>Demo Runbook</strong></a>
+  <a href="docs/DEMO.md"><strong>Demo Guide</strong></a>
   ·
   <a href="docs/AGENT-INTEGRATION.md"><strong>Agent Integration</strong></a>
+  ·
+  <a href="docs/RUNTIME-PROOF.md"><strong>Runtime Proof</strong></a>
 </p>
 
 <p align="center"><sub>X-Agent MCP Hackathon 2026 · Live Cloudflare Worker · Read-only research authority</sub></p>
@@ -212,13 +212,13 @@ flowchart LR
     P -->|insufficient| R[Explicit refusal]
     D --> X[REST + MCP]
     R --> X
-    X --> T[Agent / judge / researcher]
+    X --> T[Agent / researcher / operator]
 ```
 
 Core runtime:
 
 - **FastAPI / Python** — market, decision, evidence, recovery, validation and MCP services.
-- **Next.js** — live product and judge-facing proof surfaces.
+- **Next.js** — live product interface.
 - **Cloudflare Worker** — one public origin for static UI and Python API runtime.
 - **Public market providers** — source data with explicit per-source provenance.
 - **Decision receipts** — deterministic packet-integrity verification.
@@ -227,21 +227,22 @@ More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## Judge path
+## Demo path
 
-The fastest review path is [`/judge/`](https://signalforge.faadil-casecraft.workers.dev/judge/).
+The product UI stays product-facing. Verification is performed directly against the same public runtime through documented endpoints rather than a separate scorecard or internal readiness surface.
 
 A useful sequence is:
 
-1. verify `/health` and X-Agent commit binding;
-2. inspect the BTC Decision Packet;
-3. inspect what evidence was admitted or excluded;
-4. inspect lease, lineage, confidence and coverage;
-5. show the negative path and refusal behavior;
-6. show bounded historical calibration;
-7. inspect MCP discovery and one read-only tool call.
+1. open the live app;
+2. verify `/health` and X-Agent commit binding;
+3. inspect the BTC Decision Packet;
+4. inspect admitted and excluded evidence;
+5. inspect lease, lineage, confidence and coverage;
+6. show the negative path and refusal behavior;
+7. show bounded historical calibration;
+8. inspect MCP discovery and one read-only tool call.
 
-Runbook: [`docs/JUDGE-DEMO.md`](docs/JUDGE-DEMO.md).
+Guide: [`docs/DEMO.md`](docs/DEMO.md).
 
 ---
 
@@ -250,15 +251,13 @@ Runbook: [`docs/JUDGE-DEMO.md`](docs/JUDGE-DEMO.md).
 The public repository is intentionally submission-focused:
 
 - `api/` — FastAPI, decision, evidence, recovery, market-data and MCP services
-- `web/` — product UI and judge proof surface
+- `web/` — product UI
 - `tests/` — deterministic policy, API, recovery and provider-fallback coverage
 - `evidence/real-failures/` — sourced public failure evidence used by the negative path
 - `docs/ARCHITECTURE.md` — compact system map
 - `docs/AGENT-INTEGRATION.md` — REST/MCP integration contract
-- `docs/JUDGE-DEMO.md` — reviewer runbook
+- `docs/DEMO.md` — public demonstration guide
 - `docs/RUNTIME-PROOF.md` — public runtime verification contract
-
-Internal research, design exploration, naming studies, strategy notes, operational handovers, and private working-state files are intentionally excluded from the submission tree.
 
 ---
 
@@ -309,11 +308,6 @@ It does **not** claim:
 Every public Decision Packet keeps execution authority external.
 
 ---
-
-## Team
-
-- **Faadil Boussari** — product / repo lead
-- **Opeyemi (`opeblow`)** — collaborator / technical lead
 
 ## License
 
