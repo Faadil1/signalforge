@@ -8,7 +8,6 @@ import {
   Asterisk,
   Ban,
   Braces,
-  CheckCircle2,
   CircleDashed,
   Fingerprint,
   ShieldOff,
@@ -87,11 +86,10 @@ export default function LandingPage() {
         <div className="mx-auto flex h-[74px] max-w-[1600px] items-center justify-between px-5 md:px-8">
           <div className="flex items-center gap-5">
             <Logo />
-            <span className="hidden font-mono text-[9px] uppercase tracking-[0.18em] text-text-subtle md:inline">PRISMATIC EVIDENCE FOUNDRY / TRACE V2</span>
+            <span className="hidden font-mono text-[9px] uppercase tracking-[0.18em] text-text-subtle md:inline">PRE-ACTION EVIDENCE GATE / LIVE MARKET DATA</span>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/judge" className="hidden sm:block"><Button variant="ghost">Proof chain</Button></Link>
-            <Link href="/dashboard"><Button>Enter foundry <ArrowRight className="h-4 w-4" /></Button></Link>
+            <Link href="/dashboard"><Button>Open dashboard <ArrowRight className="h-4 w-4" /></Button></Link>
           </div>
         </div>
         <div className="prism-rule" />
@@ -186,12 +184,12 @@ export default function LandingPage() {
         <section className="border-y border-border bg-prism-violet text-white">
           <div className="mx-auto grid max-w-[1600px] gap-8 px-5 py-14 md:px-8 md:py-20 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-prism-lime"><Sparkles className="h-4 w-4" /> LIVE PROOF SURFACE</div>
-              <p className="forge-display mt-5 max-w-5xl text-5xl font-semibold md:text-8xl">Don&apos;t trust the page. Probe the system.</p>
-              <p className="mt-6 max-w-2xl text-sm leading-6 text-white/75">The judge surface calls the runtime directly: exact commit, Decision Packet, stress, refusal/recovery, integrity and MCP.</p>
+              <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.18em] text-prism-lime"><Sparkles className="h-4 w-4" /> EVIDENCE IN CONTEXT</div>
+              <p className="forge-display mt-5 max-w-5xl text-5xl font-semibold md:text-8xl">Inspect the evidence, not just the score.</p>
+              <p className="mt-6 max-w-2xl text-sm leading-6 text-white/75">Move from the live decision to the dashboard or agent interface to inspect admitted evidence, refusal conditions, recovery requirements and receipts.</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/judge"><Button size="lg" variant="secondary">Open proof chain <CheckCircle2 className="h-4 w-4" /></Button></Link>
+              <Link href="/dashboard"><Button size="lg" variant="secondary">Open dashboard <ArrowRight className="h-4 w-4" /></Button></Link>
               <Link href="/playground"><Button size="lg" variant="secondary">Agent interface <Braces className="h-4 w-4" /></Button></Link>
             </div>
           </div>
