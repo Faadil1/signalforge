@@ -1,6 +1,6 @@
 # SignalForge — Cloudflare Runtime Deployment Runbook
 
-This runbook defines the judged deployment posture. It is an execution checklist, not evidence that deployment has already occurred.
+This runbook defines the production deployment posture. It is an execution checklist, not evidence that deployment has already occurred.
 
 ## Canonical architecture
 
@@ -11,7 +11,7 @@ SignalForge deploys as **one Cloudflare Worker** from one exact Git commit:
 - Workers Static Assets serves the UI directly.
 - `assets.run_worker_first` sends only the API/proof paths through FastAPI.
 
-This produces one public origin for the judge UI and the API proof surface. There is no frontend/backend commit drift and no cross-service proxy dependency.
+This produces one public origin for the product UI and API proof surface. There is no frontend/backend commit drift and no cross-service proxy dependency.
 
 Worker-first paths:
 
@@ -21,7 +21,7 @@ Worker-first paths:
 - `/docs*`
 - `/openapi.json`
 
-All normal UI routes, including `/judge/`, are served as static assets from the same Worker origin.
+All normal UI routes are served as static assets from the same Worker origin.
 
 ## Runtime compatibility
 
@@ -39,7 +39,7 @@ Cloudflare runtime adaptations:
 `.github/workflows/cloudflare-verify.yml` must pass on the exact candidate commit before deployment. It verifies:
 
 1. clean Next.js install and static export;
-2. exported `/` and `/judge/` assets exist;
+2. exported product root `/` exists;
 3. Cloudflare Python dependencies resolve;
 4. the SignalForge FastAPI app imports under the Cloudflare dependency set;
 5. `pywrangler deploy --dry-run` successfully compiles the Worker bundle.
@@ -81,7 +81,7 @@ RATE_LIMIT_ENABLED=true
 .cloudflare-deploy-trigger
 ```
 
-Normal code, documentation and state pushes therefore do not create production deployment runs. After credentials are present, updating the marker file creates one exact deployment commit that is rebuilt, smoke-tested, compiled and then uploaded.
+Normal code and documentation pushes therefore do not create production deployment runs. After credentials are present, updating the marker file creates one exact deployment commit that is rebuilt, smoke-tested, compiled and then uploaded.
 
 After upload the workflow discovers or accepts the canonical Worker URL and refuses to declare success until runtime verification passes.
 
@@ -90,18 +90,18 @@ After upload the workflow discovers or accepts the canonical Worker URL and refu
 The workflow archives raw proof for all required same-origin calls:
 
 ```bash
-curl https://<judge-origin>/health
-curl https://<judge-origin>/.well-known/xagent-verification.json
-curl https://<judge-origin>/api/v1/decision/BTC
-curl https://<judge-origin>/api/v1/decision/BTC/delta
-curl "https://<judge-origin>/api/v1/validation/BTC?period_days=120&horizon_days=3"
-curl https://<judge-origin>/api/v1/evidence/negative-path
+curl https://<public-origin>/
+curl https://<public-origin>/health
+curl https://<public-origin>/.well-known/xagent-verification.json
+curl https://<public-origin>/api/v1/decision/BTC
+curl https://<public-origin>/api/v1/decision/BTC/delta
+curl "https://<public-origin>/api/v1/validation/BTC?period_days=120&horizon_days=3"
+curl https://<public-origin>/api/v1/evidence/negative-path
 ```
-
-It also fetches `/judge/` from the same origin.
 
 Required assertions include:
 
+- product root returns successfully;
 - `/health.status == "ok"`;
 - `/health.commit == GITHUB_SHA`;
 - verification `slug == "signalforge"`;
@@ -119,7 +119,7 @@ The responses, deployment log and a runtime manifest are retained as a GitHub Ac
 
 Workers Free currently permits 10 ms of CPU time per dynamic request. Static asset requests do not invoke the Python Worker unless they match `run_worker_first`.
 
-If a judged dynamic endpoint repeatedly returns Cloudflare resource-limit error 1102, do not weaken or remove verification. Either move the Worker to a plan with sufficient CPU allowance or choose another backend runtime, then re-run the complete runtime proof.
+If a required dynamic endpoint repeatedly returns Cloudflare resource-limit error 1102, do not weaken or remove verification. Either move the Worker to a plan with sufficient CPU allowance or choose another backend runtime, then re-run the complete runtime proof.
 
 ## Evidence discipline
 
@@ -133,10 +133,10 @@ Stop and fix rather than submit if any of these occur:
 
 - public runtime is unreachable;
 - health reports a missing, shortened or different commit;
-- `/judge/` and API proof paths do not share one public origin;
-- API returns mock evidence in judged mode;
+- product UI and API proof paths do not share one public origin;
+- API returns mock evidence in production mode;
 - stale/unknown evidence is represented as healthy;
 - negative path cannot be reproduced;
-- runtime requires private authentication for judges;
+- runtime requires private authentication for public review;
 - Cloudflare CPU/resource limits make required calls unreliable;
 - deployment URL is ephemeral or scheduled to expire during the review window.
