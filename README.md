@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="SignalForge logo" width="320" height="64" />
+  <img src="web/src/app/icon.svg" alt="SignalForge logo" width="92" height="92" />
 </p>
 
 <h1 align="center">SignalForge</h1>
@@ -17,10 +17,10 @@
   <a href="docs/RUNTIME-PROOF.md"><strong>Runtime Proof</strong></a>
 </p>
 
-<p align="center"><sub>X-Agent MCP Hackathon 2026 · Live Cloudflare Worker · Read-only research authority</sub></p>
+<p align="center"><sub>X-Agent MCP Hackathon 2026 · Cloudflare Worker · REST + MCP · Read-only authority</sub></p>
 
 > **Current status**  
-> SignalForge runs as a public Cloudflare Worker with mock fallback disabled and execution authority kept external. The runtime exposes its exact deployed source commit through `/health` and `/.well-known/xagent-verification.json`; those two values must match for a release to be considered bound.
+> SignalForge is live on Cloudflare with mock fallback disabled and execution authority kept external. The final public product surface is bound to source commit `087a9d9db98b5ec53da04bae0e8b07f2a4b7f976`, Cloudflare Version ID `e1414c91-2e7b-408b-970c-0e7f4df6f3c6`, and the same commit is exposed by both `/health` and `/.well-known/xagent-verification.json`.
 
 ---
 
@@ -28,9 +28,9 @@
 
 ### The pain
 
-Market agents can receive a clean-looking score even when the evidence underneath it is stale, partial, concentrated in one provider, or simply unavailable.
+**A market agent can receive a clean-looking score even when the evidence underneath it is stale, partial, contradictory, or unavailable.**
 
-That is dangerous because **an answer can look complete while its evidence is not**.
+The dangerous failure is not only getting a bad answer. It is getting an answer that looks complete when its evidence is not.
 
 ### The problem
 
@@ -38,63 +38,73 @@ Before an agent acts on a market conclusion, it should be able to answer:
 
 - Which raw sources actually contributed?
 - Which sources were excluded, and why?
-- How fresh is each contributing input?
-- Is the available coverage sufficient?
-- Is confidence high enough to permit a directional handoff?
-- What would invalidate the conclusion?
-- What evidence would need to recover before another attempt?
+- How fresh is each input?
+- Is usable coverage high enough?
+- Is confidence high enough for a directional handoff?
+- What contradicts the conclusion?
+- What would invalidate it?
+- What evidence must recover before another attempt?
 - Can the result be verified later without trusting presentation copy?
 
-Most signal tools optimize for producing an answer. SignalForge optimizes for deciding whether an answer is **admissible at all**.
+Most signal products optimize for producing an answer. SignalForge first decides whether an answer is **admissible at all**.
 
 ### Why SignalForge is different
 
-SignalForge turns live public market data into an evidence-bound Decision Packet.
+SignalForge turns live public market data into an evidence-bound **Decision Packet**.
 
-- Raw inputs are freshness- and quality-gated before fusion.
+- Raw inputs pass freshness and quality gates before fusion.
 - Missing evidence is excluded instead of silently becoming a neutral score.
 - Coverage and confidence can force an explicit refusal.
-- Every signal exposes provider and raw-input lineage.
+- Supporting, contradicting and neutral evidence remain visible.
+- Every admitted signal exposes provider and raw-input lineage.
 - Every packet carries a freshness-bounded evidence lease.
-- Recovery requirements describe necessary conditions without promising success.
+- Recovery requirements state necessary conditions without promising success.
 - A SHA-256 receipt makes packet tampering detectable.
 - REST and MCP expose the same bounded, read-only authority model.
-- No product state authorizes trade execution.
+- SignalForge never grants trade execution authority.
 
-**RAW SOURCE → ADMISSION / EXCLUSION → LINEAGE → LEASE → POLICY GATE → REFUSAL OR HANDOFF → RECEIPT**
+**SOURCE → ADMIT / EXCLUDE → LINEAGE → LEASE → POLICY GATE → REFUSE OR HANDOFF → RECEIPT**
+
+Without an evidence gate, an agent can confuse “data returned” with “decision justified.” SignalForge makes that distinction explicit.
 
 ---
 
-## Live proof
+## The product flow
 
-The canonical runtime is:
+| Step | What happens |
+|---|---|
+| Inspect market evidence | Pull public market inputs with provider provenance |
+| Admit or exclude | Reject stale, unavailable or inconsistent evidence before fusion |
+| Build the packet | Group support, contradiction, coverage, confidence and lineage |
+| Apply the policy gate | Refuse a directional handoff when evidence is insufficient |
+| Lease the conclusion | Bound the packet with `valid_until` and invalidation conditions |
+| Verify later | Recompute the SHA-256 receipt and inspect the exact runtime source |
+| Expose to agents | Serve the same bounded contract through REST and MCP |
+
+The product story is simple: **do not ask an agent to trust the score until the evidence underneath the score has earned admission.**
+
+---
+
+## Live product
+
+Canonical runtime:
 
 ```text
 https://signalforge.faadil-casecraft.workers.dev
 ```
 
-Core verification calls:
+Core surfaces:
 
-```bash
-curl https://signalforge.faadil-casecraft.workers.dev/health
-curl https://signalforge.faadil-casecraft.workers.dev/.well-known/xagent-verification.json
-curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC
-curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC/delta
-curl "https://signalforge.faadil-casecraft.workers.dev/api/v1/validation/BTC?period_days=120&horizon_days=3"
-curl https://signalforge.faadil-casecraft.workers.dev/api/v1/evidence/negative-path
-```
+- `/` — product overview
+- `/dashboard` — evidence and decision state
+- `/token` — token-level signal inspection
+- `/playground` — interactive research surface
+- `/strategies` — strategy context
+- `/api/v1/decision/BTC` — evidence-bound Decision Packet
+- `/api/v1/capabilities` — machine-readable capability contract
+- `/mcp` — stateless MCP endpoint
 
-A bound release must establish all of the following:
-
-- `/health` returns `status: ok` and the exact deployed source commit;
-- X-Agent verification returns the same commit and `slug: signalforge`;
-- production data mode is not mock;
-- unavailable evidence is excluded rather than invented;
-- `execution_authorized` remains `false`;
-- the negative-path fixture passes and preserves abstention under degraded evidence;
-- historical calibration states its actual scope and does not claim full-composite validation when only the price-derived subset is measured.
-
-See [`docs/RUNTIME-PROOF.md`](docs/RUNTIME-PROOF.md) for the public proof contract and independently verified baseline.
+The final public product intentionally has **no internal readiness scorecard or judge-only barometer**. Verification happens through the same public runtime and documented proof endpoints.
 
 ---
 
@@ -119,7 +129,32 @@ Canonical rule:
 AVAILABLE != FRESH != CONSISTENT != ACTIONABLE
 ```
 
-Production uses public market data with explicit provenance. Price-derived evidence can fall back to Coinbase Exchange when Binance endpoints are unavailable from the runtime environment. Funding and open interest remain unavailable when no supported live source is available.
+Production uses public market data with explicit provenance. Price-derived evidence can fall back to Coinbase Exchange when Binance endpoints are unavailable from the runtime environment. Funding and open interest stay unavailable when no supported live source is available.
+
+---
+
+## Evidence and runtime proof
+
+A release is considered bound only when the public runtime identifies the exact source that produced it.
+
+```bash
+curl https://signalforge.faadil-casecraft.workers.dev/health
+curl https://signalforge.faadil-casecraft.workers.dev/.well-known/xagent-verification.json
+```
+
+The final public verification established:
+
+- homepage returned HTTP `200`;
+- the internal `/judge/` surface returns `404`;
+- the homepage contains none of the removed internal process markers;
+- `/health` returns `status: ok`;
+- `/health` exposes source commit `087a9d9db98b5ec53da04bae0e8b07f2a4b7f976`;
+- X-Agent verification exposes the same commit and `slug: signalforge`;
+- mock fallback is disabled;
+- the final clean frontend export uploaded 36 new or modified static assets to Cloudflare;
+- the deployed Cloudflare Version ID is `e1414c91-2e7b-408b-970c-0e7f4df6f3c6`.
+
+Full receipt: [`docs/RUNTIME-PROOF.md`](docs/RUNTIME-PROOF.md).
 
 ---
 
@@ -131,7 +166,7 @@ On **2025-04-15**, an AWS Tokyo connectivity incident affected Binance services.
 
 SignalForge does **not** claim to have captured or replayed that historical event.
 
-Instead, the product keeps the epistemic boundary explicit:
+Instead, it preserves the epistemic boundary:
 
 1. the historical incident is sourced external evidence;
 2. the product reproduces the **failure class** with a controlled fixture;
@@ -145,17 +180,7 @@ Evidence records:
 
 ---
 
-## Agent-native execution model
-
-SignalForge exposes the same bounded contract through REST and stateless MCP.
-
-### Capability contract
-
-```http
-GET /api/v1/capabilities
-```
-
-Describes tool contracts, state semantics, protocol versions, side-effect boundaries, safe-failure behavior, and authority limits.
+## Agent-native contract
 
 ### Decision Packet
 
@@ -163,22 +188,29 @@ Describes tool contracts, state semantics, protocol versions, side-effect bounda
 GET /api/v1/decision/BTC
 ```
 
-Includes:
+A packet can include:
 
 - stance and composite score;
-- confidence and coverage;
+- confidence and usable coverage;
 - actionability state;
-- evidence grouped as supporting / contradicting / neutral;
-- source freshness and provenance;
+- supporting / contradicting / neutral evidence;
 - evidence admission ledger;
-- provider/raw-input lineage;
-- evidence lease with `valid_until`;
+- provider and raw-input lineage;
+- freshness lease with `valid_until`;
 - recovery requirements;
 - invalidation conditions;
 - next safe agent action;
 - snapshot ID;
 - tamper-evident SHA-256 receipt;
 - `execution_authorized: false`.
+
+### Capability contract
+
+```http
+GET /api/v1/capabilities
+```
+
+Describes tool contracts, protocol versions, safe-failure behavior, side-effect boundaries and authority limits.
 
 ### MCP
 
@@ -187,13 +219,7 @@ POST /mcp
 MCP-Protocol-Version: 2026-07-28
 ```
 
-Supported methods:
-
-- `server/discover`
-- `tools/list`
-- `tools/call`
-
-Current tools include decision retrieval, stateless comparison, stress testing, receipt verification, bounded calibration, negative-path inspection, and evidence-resilience checks.
+Supported methods include `server/discover`, `tools/list`, and `tools/call` for decision retrieval, stateless comparison, stress testing, receipt verification, bounded calibration, negative-path inspection and evidence-resilience checks.
 
 The MCP surface is read-only and does not execute trades.
 
@@ -215,49 +241,81 @@ flowchart LR
     X --> T[Agent / researcher / operator]
 ```
 
-Core runtime:
-
 - **FastAPI / Python** — market, decision, evidence, recovery, validation and MCP services.
-- **Next.js** — live product interface.
-- **Cloudflare Worker** — one public origin for static UI and Python API runtime.
+- **Next.js** — public product interface.
+- **Cloudflare Worker** — one origin for static UI and Python API runtime.
 - **Public market providers** — source data with explicit per-source provenance.
 - **Decision receipts** — deterministic packet-integrity verification.
 
-More detail: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## Demo path
+## Demo
 
-The product UI stays product-facing. Verification is performed directly against the same public runtime through documented endpoints rather than a separate scorecard or internal readiness surface.
+The recommended walkthrough uses the real public product and the same endpoints available to agents:
 
-A useful sequence is:
-
-1. open the live app;
-2. verify `/health` and X-Agent commit binding;
-3. inspect the BTC Decision Packet;
-4. inspect admitted and excluded evidence;
-5. inspect lease, lineage, confidence and coverage;
-6. show the negative path and refusal behavior;
-7. show bounded historical calibration;
-8. inspect MCP discovery and one read-only tool call.
+1. open the live product;
+2. inspect the dashboard and one token;
+3. open the BTC Decision Packet;
+4. identify admitted and excluded evidence;
+5. inspect coverage, confidence, lineage and `valid_until`;
+6. trigger the controlled negative path and show the refusal behavior;
+7. inspect MCP discovery / one read-only tool call;
+8. close on `/health` + X-Agent source binding.
 
 Guide: [`docs/DEMO.md`](docs/DEMO.md).
+
+A deterministic Remotion / HyperFrames demo-video package is kept under [`video/`](video/) so the edit can be regenerated from the public product instead of relying on an opaque exported timeline.
+
+---
+
+## Engineering challenges
+
+### Refusing to turn missing data into fake neutrality
+
+Unavailable inputs originally risked looking equivalent to a valid neutral signal. SignalForge now excludes unavailable evidence before fusion and surfaces the resulting evidence debt explicitly.
+
+### Keeping recovery bounded
+
+A recovery plan can identify what must become fresh or available again, but it cannot promise that the next Decision Packet will become directional. Recovery conditions are necessary, not sufficient.
+
+### Making provenance inspectable by both humans and agents
+
+The UI, REST contract and MCP tools use the same evidence semantics so an agent does not receive a more permissive interpretation than the human-facing product.
+
+### Binding the live runtime to exact source
+
+The production Worker exposes its Git commit through `/health` and the X-Agent verification document. A deployment is not treated as bound unless those values agree with the source used to build it.
+
+---
+
+## Security and authority boundaries
+
+- SignalForge is read-only with respect to trading.
+- `execution_authorized` remains `false` in public Decision Packets.
+- Missing evidence is never synthesized into a stronger conclusion.
+- Integrity receipts detect packet mutation; they are not identity signatures.
+- Freshness leases bound evidence age; they do not guarantee forecast validity.
+- Recovery requirements do not guarantee actionability.
+- Production mock fallback is disabled.
+
+See [`SECURITY.md`](SECURITY.md).
 
 ---
 
 ## Repository guide
 
-The public repository is intentionally submission-focused:
+The public `main` branch is intentionally submission-focused:
 
-- `api/` — FastAPI, decision, evidence, recovery, market-data and MCP services
-- `web/` — product UI
+- `api/` — FastAPI, market-data, decision, evidence, recovery and MCP services
+- `web/` — public product UI
 - `tests/` — deterministic policy, API, recovery and provider-fallback coverage
 - `evidence/real-failures/` — sourced public failure evidence used by the negative path
-- `docs/ARCHITECTURE.md` — compact system map
-- `docs/AGENT-INTEGRATION.md` — REST/MCP integration contract
-- `docs/DEMO.md` — public demonstration guide
-- `docs/RUNTIME-PROOF.md` — public runtime verification contract
+- `docs/` — concise architecture, integration, demo, deployment and runtime-proof material
+- `video/` — reproducible demo-video source and capture workflow
+
+Internal research, strategy notes, private working documents, readiness scorecards, transcript analysis and operational handovers are intentionally **not part of the public submission tree**.
 
 ---
 
@@ -293,9 +351,7 @@ uv run pywrangler deploy --dry-run
 
 ## Product boundaries
 
-SignalForge is a research and evidence-admission system.
-
-It does **not** claim:
+SignalForge does **not** claim:
 
 - autonomous trading authority;
 - guaranteed profitability;
@@ -308,6 +364,15 @@ It does **not** claim:
 Every public Decision Packet keeps execution authority external.
 
 ---
+
+## Useful links
+
+- [Live App](https://signalforge.faadil-casecraft.workers.dev)
+- [Demo Guide](docs/DEMO.md)
+- [Agent Integration](docs/AGENT-INTEGRATION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Runtime Proof](docs/RUNTIME-PROOF.md)
+- [Security](SECURITY.md)
 
 ## License
 

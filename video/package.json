@@ -1,0 +1,22 @@
+{
+  "name": "signalforge-demo-video",
+  "private": true,
+  "scripts": {
+    "capture": "node capture.mjs",
+    "studio": "remotion studio src/index.ts",
+    "check:remotion": "remotion compositions src/index.ts",
+    "render": "remotion render src/index.ts SignalForgeDemo renders/signalforge-demo.mp4 --codec=h264",
+    "still": "remotion still src/index.ts SignalForgeDemo renders/signalforge-cover.png --frame=30",
+    "hyperframes:check": "npx hyperframes check hyperframes",
+    "hyperframes:preview": "npx hyperframes preview hyperframes",
+    "hyperframes:render": "npx hyperframes render hyperframes --output renders/hyperframes-intro.mp4 --quality high"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.506",
+    "@remotion/media": "4.0.506",
+    "playwright": "1.55.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.506"
+  }
+}

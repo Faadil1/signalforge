@@ -82,6 +82,11 @@ lerna-debug.log*
 # ── Docker ────────────────────────────────────
 docker-compose.override.yml
 
+# ── Video build artifacts ─────────────────────
+video/public/captures/
+video/public/voiceover.mp3
+video/renders/
+
 # ── Misc ──────────────────────────────────────
 *.pem
 *.key
