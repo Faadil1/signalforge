@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   title: "SignalForge — Evidence-bound market intelligence for agents",
   description:
     "SignalForge fuses complementary market evidence into confidence-gated Decision Packets with explicit provenance, contradictions, invalidation and no execution authority.",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    shortcut: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
