@@ -1,8 +1,10 @@
 name: Cloudflare Runtime Verify
 
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches: [cloudflare-runtime, winning-intelligence-v2, winning-intelligence-v3, trace-ui-v2-maximal]
+    branches: [main, cloudflare-runtime]
   workflow_dispatch:
 
 concurrency:
@@ -56,7 +58,7 @@ jobs:
           print("SignalForge FastAPI import: OK")
           PY
 
-      - name: Verify Winning Intelligence contracts
+      - name: Verify product contracts
         env:
           PYTHONPATH: api
         run: |
