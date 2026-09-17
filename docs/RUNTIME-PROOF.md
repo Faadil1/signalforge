@@ -32,12 +32,15 @@ The final public product surface was rebuilt from a clean frontend state after r
 
 The following public checks were observed after deployment:
 
+- `/`
 - `/health`
 - `/.well-known/xagent-verification.json`
 - `/judge/`
 
 Observed assertions:
 
+- homepage returned HTTP `200`;
+- homepage content did not contain `Judge proof`, `TRACE V2`, `PRISMATIC EVIDENCE FOUNDRY`, or `14/14`;
 - health status was `ok`;
 - health commit matched the exact source commit above;
 - health reported `project_slug: signalforge`;
@@ -45,8 +48,6 @@ Observed assertions:
 - X-Agent verification returned the same exact commit;
 - X-Agent slug was `signalforge`;
 - `/judge/` returned `404`, confirming that the internal judge/barometer route is not part of the final public product surface.
-
-A separate PowerShell homepage-content check was not treated as proof because the local variable name `$home` collided with PowerShell's built-in read-only `$HOME` variable. That scripting error did not affect deployment, `/health`, X-Agent verification, or the verified `/judge/` 404 result.
 
 ## Prior trust-policy proof
 
@@ -63,7 +64,7 @@ These trust-policy properties are covered by the repository's current automated 
 
 ## What this proves
 
-This receipt proves that the public Worker was redeployed from the final public repository commit, that the public health and X-Agent surfaces bind to that exact commit, and that the internal `/judge` barometer route is absent from the deployed product surface.
+This receipt proves that the public Worker was redeployed from the final public repository commit, that the public homepage serves the cleaned final product surface, that the public health and X-Agent surfaces bind to that exact commit, and that the internal `/judge` barometer route is absent from the deployed product.
 
 It does **not** prove:
 
