@@ -1,84 +1,140 @@
 # SignalForge — Judge Demo Runbook
 
-Goal: demonstrate usefulness **and** refusal behavior in under a few minutes without making claims stronger than the evidence.
+Goal: demonstrate usefulness, provenance, and refusal behavior in a few minutes without making claims stronger than the evidence.
 
 ## Memory sentence
 
-> **Evidence before recommendation. Refusal before false confidence.**
+> **Prove the right to conclude.**
 
-## Part A — Positive path
+## Part A — Runtime identity
 
-1. Open `/judge`.
-2. Show `/health` and confirm the deployed 40-character review commit.
+1. Open `https://signalforge.faadil-casecraft.workers.dev/judge/`.
+2. Show `/health` and confirm the deployed 40-character source commit.
 3. Show `/.well-known/xagent-verification.json` and confirm the same slug + commit.
-4. Open the live BTC Decision Packet.
-5. Point to:
-   - source provenance;
-   - freshness/data-quality metadata;
-   - coverage;
-   - confidence;
-   - supporting / contradicting evidence;
-   - invalidation;
-   - `execution_authorized: false`.
-6. Open Signal Delta and explain that it detects material change, with process-memory persistence explicitly disclosed.
-7. Open Validation Lab and state exactly: current historical calibration is **price-derived 3/5**; funding/open-interest are not claimed as historically validated.
+4. State that production runs with synthetic fallback disabled.
 
-## Part B — Real failure + controlled negative path
+## Part B — Live Decision Packet
 
-1. Open `GET /api/v1/evidence/negative-path` from `/judge`.
-2. Start with the real event:
-   - 2025-04-15 AWS Tokyo connectivity incident;
-   - Binance services affected;
-   - some orders succeeded while others failed;
-   - withdrawals paused for approximately 23 minutes;
-   - source: Reuters.
-3. State the epistemic boundary:
-   - the event is real;
-   - SignalForge did **not** capture historical requests during that incident;
-   - the fixture is a controlled reproduction of the failure class, not a historical replay.
-4. Show the controlled evidence quality state:
-   - ticker: fresh;
-   - klines: fresh;
-   - open interest: stale;
-   - funding: unavailable.
-5. Show the outcome:
-   - only 3/5 evidence channels remain usable;
-   - adjusted confidence falls below the actionable gate;
-   - recommendation: `insufficient_evidence`;
-   - actionability: `insufficient_evidence`;
-   - `execution_authorized: false`.
-6. Close with: **AVAILABLE != FRESH != CONSISTENT != ACTIONABLE.**
+Open:
 
-## Part C — Failure escalation
+```http
+GET /api/v1/decision/BTC
+```
 
-If asked what happens when every upstream source is unusable:
+Point to:
 
-- production is configured with `ALLOW_MOCK_FALLBACK=false`;
-- the Binance client fails closed rather than replacing evidence with hidden synthetic data;
-- the behavior is covered by automated tests.
+- source provenance;
+- per-source freshness and quality;
+- evidence admission/exclusion;
+- coverage and confidence;
+- supporting / contradicting / neutral evidence;
+- evidence lease;
+- invalidation conditions;
+- recovery requirements;
+- SHA-256 receipt;
+- `execution_authorized: false`.
 
-## Q&A traps to avoid
+If the current packet is `insufficient_evidence`, treat that as a valid product outcome rather than a demo failure.
+
+## Part C — Real failure + controlled negative path
+
+Open:
+
+```http
+GET /api/v1/evidence/negative-path
+```
+
+Explain the separation clearly:
+
+1. The 2025-04-15 AWS Tokyo/Binance incident is a sourced real-world failure reference.
+2. SignalForge did **not** capture live requests during that historical incident.
+3. The controlled fixture reproduces the relevant evidence-degradation class; it is not a historical replay.
+4. Degraded evidence must reduce usable coverage and force abstention rather than false directional confidence.
+
+Expected controlled result:
+
+```text
+recommendation = insufficient_evidence
+actionability = insufficient_evidence
+execution_authorized = false
+```
+
+Close with:
+
+```text
+AVAILABLE != FRESH != CONSISTENT != ACTIONABLE
+```
+
+## Part D — Fragility and recovery
+
+Open:
+
+```http
+GET /api/v1/decision/BTC/stress
+```
+
+Show that the system can remove currently observed evidence without inventing replacements and report which dropouts force refusal.
+
+Then explain that recovery requirements are **necessary conditions**, not guarantees that future evidence will support a directional handoff.
+
+## Part E — Validation boundary
+
+Open:
+
+```http
+GET /api/v1/validation/BTC?period_days=120&horizon_days=3
+```
+
+State exactly:
+
+- the current calibration covers the price-derived 3/5 subset;
+- funding and open-interest history are omitted;
+- `full_composite_validated` remains false;
+- no profitability claim is made.
+
+## Part F — Agent integration
+
+Use either REST or MCP.
+
+For MCP:
+
+```http
+POST /mcp
+MCP-Protocol-Version: 2026-07-28
+```
+
+Recommended sequence:
+
+1. `server/discover`
+2. `tools/list`
+3. `tools/call` → `get_decision_packet`
+4. optionally `stress_test_decision` or `verify_decision_receipt`
+
+Emphasize that the MCP surface is stateless, read-only, and side-effect free.
+
+## Claims to avoid
 
 Do not say:
 
-- “this would have prevented losses during the AWS incident”;
-- “we replayed the incident”;
-- “all five signals are historically validated”;
-- “the signals are statistically independent”;
-- “the system can execute trades autonomously”;
-- “HTTP 200 means the market evidence is healthy.”
+- SignalForge would have prevented losses during the historical AWS incident;
+- the historical incident was replayed;
+- all five signals are historically validated;
+- the evidence channels are statistically independent;
+- a valid evidence lease guarantees forecast validity;
+- a receipt proves external truth or identity;
+- the system authorizes or executes trades;
+- an HTTP success response means market evidence is healthy.
 
-Use `docs/ADVERSARIAL-QA.md` for the bounded answer to each likely challenge.
-
-## Final demo gate
-
-The demo is not final until the public deployment passes all six calls from the same judged origin:
+## Public verification calls
 
 ```bash
-curl https://YOUR_HOST/health
-curl https://YOUR_HOST/.well-known/xagent-verification.json
-curl https://YOUR_HOST/api/v1/decision/BTC
-curl https://YOUR_HOST/api/v1/decision/BTC/delta
-curl "https://YOUR_HOST/api/v1/validation/BTC?period_days=120&horizon_days=3"
-curl https://YOUR_HOST/api/v1/evidence/negative-path
+curl https://signalforge.faadil-casecraft.workers.dev/health
+curl https://signalforge.faadil-casecraft.workers.dev/.well-known/xagent-verification.json
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC/delta
+curl "https://signalforge.faadil-casecraft.workers.dev/api/v1/validation/BTC?period_days=120&horizon_days=3"
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/evidence/negative-path
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/capabilities
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/evidence/resilience-benchmark
+curl https://signalforge.faadil-casecraft.workers.dev/api/v1/decision/BTC/stress
 ```
