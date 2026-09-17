@@ -8,46 +8,62 @@ https://signalforge.faadil-casecraft.workers.dev
 
 ## Exact runtime binding
 
-- Source commit: `ada65fe9b2170a910d458f2db9855fe087ca9446`
-- Cloudflare Version ID: `a7d93227-a130-4403-aa37-f992c3bd61ea`
+- Source commit: `087a9d9db98b5ec53da04bae0e8b07f2a4b7f976`
+- Cloudflare Version ID: `e1414c91-2e7b-408b-970c-0e7f4df6f3c6`
 - X-Agent slug: `signalforge`
 - Mock fallback: disabled
 - Execution authority: false
 
+This deployment supersedes the earlier verified runtime bound to source commit `ada65fe9b2170a910d458f2db9855fe087ca9446` and Cloudflare Version ID `a7d93227-a130-4403-aa37-f992c3bd61ea`.
+
+## Deployment evidence
+
+The final public product surface was rebuilt from a clean frontend state after removing cached Next.js artifacts:
+
+- `.next`, `out`, and `tsconfig.tsbuildinfo` were removed locally before the final build;
+- Next.js 16.3.5 completed production compilation, TypeScript checking, page-data collection, static generation, and final optimization successfully;
+- the exported route set contained `/`, `/alerts`, `/dashboard`, `/healthz`, `/playground`, `/strategies`, and `/token`;
+- `/judge` was absent from the exported route set and `web/out/judge` did not exist;
+- Cloudflare dry-run completed successfully against 99 exported asset files;
+- the production deployment uploaded 36 new or modified static assets;
+- the Worker deployed successfully with Version ID `e1414c91-2e7b-408b-970c-0e7f4df6f3c6`.
+
 ## Public verification results
 
-The following public calls were verified after deployment:
+The following public checks were observed after deployment:
 
 - `/health`
 - `/.well-known/xagent-verification.json`
-- `/api/v1/decision/BTC`
-- `/api/v1/decision/BTC/delta`
-- `/api/v1/validation/BTC?period_days=120&horizon_days=3`
-- `/api/v1/evidence/negative-path`
+- `/judge/`
 
 Observed assertions:
 
 - health status was `ok`;
 - health commit matched the exact source commit above;
-- X-Agent verification returned the same commit;
+- health reported `project_slug: signalforge`;
+- health reported `mock_fallback_enabled: false`;
+- X-Agent verification returned the same exact commit;
 - X-Agent slug was `signalforge`;
-- production data mode was not `mock`;
-- the BTC Decision Packet preserved `execution_authorized: false`;
-- unavailable evidence was excluded instead of synthesized;
-- the delta endpoint returned successfully;
-- validation disclosed `full_composite_validated: false`;
-- the negative-path controlled counter-case passed;
-- the negative-path result preserved `execution_authorized: false`.
+- `/judge/` returned `404`, confirming that the internal judge/barometer route is not part of the final public product surface.
 
-## Verification snapshot
+A separate PowerShell homepage-content check was not treated as proof because the local variable name `$home` collided with PowerShell's built-in read-only `$HOME` variable. That scripting error did not affect deployment, `/health`, X-Agent verification, or the verified `/judge/` 404 result.
 
-At the verified snapshot, price-derived evidence was available through Coinbase Exchange fallback while funding and open interest were unavailable. The system therefore produced a live-partial evidence state, excluded the unavailable sources, and refused to promote insufficient confidence into a directional handoff.
+## Prior trust-policy proof
 
-The exact numeric market values from that snapshot are intentionally not treated as canonical constants.
+The earlier live proof chain on the same application logic also verified:
+
+- `/api/v1/decision/BTC`
+- `/api/v1/decision/BTC/delta`
+- `/api/v1/validation/BTC?period_days=120&horizon_days=3`
+- `/api/v1/evidence/negative-path`
+
+That proof established that production data mode was not `mock`, unavailable evidence was excluded instead of synthesized, validation disclosed `full_composite_validated: false`, the controlled negative-path case passed, and Decision Packets preserved `execution_authorized: false`.
+
+These trust-policy properties are covered by the repository's current automated backend and Cloudflare bundle gates; the exact market values from any one snapshot are intentionally not treated as canonical constants.
 
 ## What this proves
 
-This receipt proves that the public Worker served the stated source commit at verification time and that the inspected trust-policy surfaces behaved as asserted.
+This receipt proves that the public Worker was redeployed from the final public repository commit, that the public health and X-Agent surfaces bind to that exact commit, and that the internal `/judge` barometer route is absent from the deployed product surface.
 
 It does **not** prove:
 
