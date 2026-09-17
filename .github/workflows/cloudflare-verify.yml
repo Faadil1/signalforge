@@ -2,7 +2,7 @@ name: Cloudflare Runtime Verify
 
 on:
   push:
-    branches: [main, submission-clean]
+    branches: [main, cloudflare-runtime]
   pull_request:
     branches: [main]
   workflow_dispatch:
